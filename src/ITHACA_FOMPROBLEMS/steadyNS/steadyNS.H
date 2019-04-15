@@ -219,6 +219,8 @@ class steadyNS: public reductionProblem
 
         /// Laminar transport (used by turbulence model)
         autoPtr<singlePhaseTransportModel> _laminarTransport;
+        /// Laminar transport 0 (used by turbulence model)
+        autoPtr<singlePhaseTransportModel> _laminarTransport0;
 
         /// MRF variable
         autoPtr<IOMRFZoneList> _MRF;

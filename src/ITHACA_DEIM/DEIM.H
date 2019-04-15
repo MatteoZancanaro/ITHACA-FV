@@ -528,6 +528,7 @@ void DEIM<T, S>::generateSubmeshesVector(int layers, fvMesh& mesh, S field,
             ITHACAutilities::assignONE(Indici, indices);
         }
 
+        std::cout.setstate(std::ios_base::failbit);
 #if OPENFOAM >= 1812
         submesh->setCellSubset(indices);
 #else

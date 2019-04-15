@@ -45,6 +45,8 @@ steadyNS_simple::steadyNS_simple(int argc, char* argv[])
     steadyNS(argc, argv)
 {
     Info << offline << endl;
+    phiHbyA_global = autoPtr<surfaceScalarField>(new surfaceScalarField("phiHbyA",
+                     fvc::flux(_U())));
 }
 
 fvVectorMatrix steadyNS_simple::get_Umatrix(volVectorField& U,
@@ -132,7 +134,7 @@ fvScalarMatrix steadyNS_simple::get_Pmatrix(volVectorField& U,
     return pEqn;
 }
 
-void steadyNS_simple::truthSolve2(List<scalar> mu_now)
+void steadyNS_simple::truthSolve2(List<scalar> mu_now, word Folder)
 {
     Time& runTime = _runTime();
     volScalarField& p = _p();
@@ -141,13 +143,13 @@ void steadyNS_simple::truthSolve2(List<scalar> mu_now)
     simpleControl& simple = _simple();
     singlePhaseTransportModel& laminarTransport = _laminarTransport();
 #include "NLsolve.H"
-    ITHACAstream::exportSolution(U, name(counter), "./ITHACAoutput/Offline/");
-    ITHACAstream::exportSolution(p, name(counter), "./ITHACAoutput/Offline/");
+    ITHACAstream::exportSolution(U, name(counter), Folder);
+    ITHACAstream::exportSolution(p, name(counter), Folder);
     Ufield.append(U);
     Pfield.append(p);
     counter++;
     writeMu(mu_now);
-    // --- Fill in the mu_samples with parameters (mu) to be used for the POD sample points
+    // Fill in the mu_samples with parameters (mu) to be used for the POD sample points
     mu_samples.conservativeResize(mu_samples.rows() + 1, mu_now.size());
 
     for (int i = 0; i < mu_now.size(); i++)
@@ -164,6 +166,6 @@ void steadyNS_simple::truthSolve2(List<scalar> mu_now)
     if (mu_samples.rows() == mu.cols())
     {
         ITHACAstream::exportMatrix(mu_samples, "mu_samples", "eigen",
-                                   "./ITHACAoutput/Offline");
+                                   Folder);
     }
 }

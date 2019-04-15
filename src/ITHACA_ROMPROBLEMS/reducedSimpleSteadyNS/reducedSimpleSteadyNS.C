@@ -59,7 +59,7 @@ reducedSimpleSteadyNS::reducedSimpleSteadyNS(steadyNS_simple& FOMproblem)
 // * * * * * * * * * * * * * * * Solve Functions  * * * * * * * * * * * * * //
 
 void reducedSimpleSteadyNS::solveOnline_Simple(scalar mu_now,
-        scalar NmodesUproj, scalar NmodesPproj)
+        scalar NmodesUproj, scalar NmodesPproj, word Folder)
 {
     counter++;
     scalar UprojN;
@@ -69,6 +69,7 @@ void reducedSimpleSteadyNS::solveOnline_Simple(scalar mu_now,
     {
         UprojN = ULmodes.size();
     }
+
     else
     {
         UprojN = NmodesUproj;
@@ -78,19 +79,21 @@ void reducedSimpleSteadyNS::solveOnline_Simple(scalar mu_now,
     {
         PprojN = problem->Pmodes.size();
     }
+
     else
     {
         PprojN = NmodesPproj;
     }
 
     Eigen::VectorXd uresidualOld = Eigen::VectorXd::Zero(UprojN);
-    Eigen::VectorXd presidualOld = Eigen::VectorXd::Zero(UprojN);
+    Eigen::VectorXd presidualOld = Eigen::VectorXd::Zero(PprojN);
     Eigen::VectorXd uresidual;
     Eigen::VectorXd presidual;
     scalar U_norm_res(1);
     scalar P_norm_res(1);
     Eigen::MatrixXd a = Eigen::VectorXd::Zero(UprojN);
     Eigen::MatrixXd b = Eigen::VectorXd::Zero(PprojN);
+    //a(0) = vel_now(0, 0);
     ITHACAparameters para;
     float residualJumpLim =
         para.ITHACAdict->lookupOrDefault<float>("residualJumpLim", 1e-5);
@@ -99,26 +102,48 @@ void reducedSimpleSteadyNS::solveOnline_Simple(scalar mu_now,
     scalar residual_jump(1 + residualJumpLim);
     volVectorField Uaux("Uaux", problem->_U());
     volScalarField Paux("Paux", problem->_p());
+    //Uaux = ULmodes.reconstruct(a, "Uaux");
+    //Paux = problem->_p();//ULmodes.reconstruct(a, "Uaux");
+    //Paux = problem->Pmodes.reconstruct(b, "Paux");
+    problem->_phi() = linearInterpolate(Uaux) & Uaux.mesh().Sf();
     int iter = 0;
 
     while (residual_jump > residualJumpLim
             || std::max(U_norm_res, P_norm_res) > normalizedResidualLim)
     {
         iter++;
-        Uaux = ULmodes.reconstruct(a, "Uaux");
-        Paux = problem->Pmodes.reconstruct(b, "Paux");
+        //Uaux = ULmodes.reconstruct(a, "Uaux");
         simpleControl& simple = problem->_simple();
         setRefCell(Paux, simple.dict(), problem->pRefCell, problem->pRefValue);
         problem->_phi() = linearInterpolate(Uaux) & problem->_U().mesh().Sf();
         fvVectorMatrix Au(get_Umatrix_Online(Uaux, Paux));
+        Au.relax();
         List<Eigen::MatrixXd> RedLinSysU = ULmodes.project(Au, UprojN);
         a = reducedProblem::solveLinearSys(RedLinSysU, a, uresidual, vel_now);
         //Info << uresidual.norm() << endl;
-        Uaux = ULmodes.reconstruct(a, "Uaux");
-        problem->_phi() = linearInterpolate(Uaux) & problem->_U().mesh().Sf();
+        //Uaux = ULmodes.reconstruct(a, "Uaux");
+        Uaux = Uaux * 0;
+
+        for (int i = 0; i < a.rows(); i++)
+        {
+            Uaux += a(i, 0) * ULmodes[i];
+        }
+
+        //problem->_phi() = linearInterpolate(Uaux) & problem->_U().mesh().Sf();
         fvScalarMatrix Ap(get_Pmatrix_Online(Uaux, Paux));
+        //Ap.relax();
         List<Eigen::MatrixXd> RedLinSysP = problem->Pmodes.project(Ap, PprojN);
         b = reducedProblem::solveLinearSys(RedLinSysP, b, presidual);
+        //Paux = problem->Pmodes.reconstruct(b, "Paux");
+        Paux = Paux * 0;
+
+        for (int i = 0; i < b.rows(); i++)
+        {
+            Paux += b(i, 0) * problem->Pmodes[i];
+        }
+
+        Paux = Paux * 0.4;
+        //problem->_phi() = problem->phiHbyA_global() - Ap.flux();
         //Info << presidual.norm() << endl;
         uresidualOld = uresidualOld - uresidual;
         presidualOld = presidualOld - presidual;
@@ -133,8 +158,13 @@ void reducedSimpleSteadyNS::solveOnline_Simple(scalar mu_now,
         presidual = presidual.cwiseAbs();
         U_norm_res = uresidual.sum() / (RedLinSysU[1].cwiseAbs()).sum();
         P_norm_res = presidual.sum() / (RedLinSysP[1].cwiseAbs()).sum();
-        // std::cout << "Residual jump = " << residual_jump << std::endl;
-        // std::cout << "Normalized residual = " << std::max(U_norm_res,P_norm_res) << std::endl;
+
+        if (para.debug)
+        {
+            std::cout << "Residual jump = " << residual_jump << std::endl;
+            std::cout << "Normalized residual = " << std::max(U_norm_res,
+                      P_norm_res) << std::endl;
+        }
     }
 
     std::cout << "Solution " << counter << " converged in " << iter <<
@@ -143,12 +173,23 @@ void reducedSimpleSteadyNS::solveOnline_Simple(scalar mu_now,
               std::endl;
     std::cout << "Final normalized residual for pressure: " << P_norm_res <<
               std::endl;
-    Uaux = ULmodes.reconstruct(a, "Uaux");
-    Paux = problem->Pmodes.reconstruct(b, "Paux");
+    Uaux = Uaux * 0;
+    Paux = Paux * 0;
+
+    for (int i = 0; i < a.rows(); i++)
+    {
+        Uaux += a(i, 0) * ULmodes[i];
+    }
+
+    for (int i = 0; i < b.rows(); i++)
+    {
+        Paux += b(i, 0) * problem->Pmodes[i];
+    }
+
     ITHACAstream::exportSolution(Uaux, name(counter),
-                                 "./ITHACAoutput/Reconstruct/");
+                                 Folder);
     ITHACAstream::exportSolution(Paux, name(counter),
-                                 "./ITHACAoutput/Reconstruct/");
+                                 Folder);
 }
 
 fvVectorMatrix reducedSimpleSteadyNS::get_Umatrix_Online(volVectorField& U,
@@ -164,7 +205,7 @@ fvVectorMatrix reducedSimpleSteadyNS::get_Umatrix_Online(volVectorField& U,
         + MRF.DDt(U)
         + problem->turbulence->divDevReff(U)
         ==
-        fvOptions(U)
+        -fvc::grad(p)
     );
     problem->Ueqn_global = &Ueqn;
     return Ueqn;
@@ -178,13 +219,18 @@ fvScalarMatrix reducedSimpleSteadyNS::get_Pmatrix_Online(volVectorField& U,
     volScalarField rAU(1.0 / problem->Ueqn_global->A());
     volVectorField HbyA(constrainHbyA(rAU * problem->Ueqn_global->H(), U, p));
     surfaceScalarField phiHbyA("phiHbyA", fvc::flux(HbyA));
-    MRF.makeRelative(phiHbyA);
+    //surfaceScalarField& phiHbyA = problem->phiHbyA_global();
+    phiHbyA = fvc::flux(HbyA);
+    //MRF.makeRelative(phiHbyA);
     adjustPhi(phiHbyA, U, p);
     tmp<volScalarField> rAtU(rAU);
     fvScalarMatrix pEqn
     (
         fvm::laplacian(rAtU(), p) == fvc::div(phiHbyA)
     );
+    pEqn.setReference(0, 0.0);
+    //problem->phiHbyA_global = &phiHbyA;
+    //problem->_phi() = phiHbyA - pEqn.flux();
     return pEqn;
 }
 
@@ -194,4 +240,14 @@ void reducedSimpleSteadyNS::setOnlineVelocity(Eigen::MatrixXd vel)
     assert(problem->inletIndex.rows() == vel.size()
            && "Imposed boundary conditions dimensions do not match given values matrix dimensions");
     vel_now = vel;
+
+    for (int k = 0; k < problem->inletIndex.rows(); k++)
+    {
+        label p = problem->inletIndex(k, 0);
+        label l = problem->inletIndex(k, 1);
+        scalar area = gSum(problem->liftfield[0].mesh().magSf().boundaryField()[p]);
+        scalar u_lf = gSum(problem->liftfield[k].mesh().magSf().boundaryField()[p] *
+                    problem->liftfield[k].boundaryField()[p]).component(l) / area;
+        vel_now(k) = vel(k) * u_lf;
+    }
 }

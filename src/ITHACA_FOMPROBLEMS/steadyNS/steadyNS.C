@@ -36,6 +36,7 @@
 #include "viscosityModel.H"
 
 // * * * * * * * * * * * * * * * Constructors * * * * * * * * * * * * * * * * //
+
 // Constructor
 steadyNS::steadyNS() {}
 steadyNS::steadyNS(int argc, char* argv[])
@@ -1126,7 +1127,4 @@ void steadyNS::restart()
     p = p0;
     U = U0;
     phi = phi0;
-    turbulence.reset(
-        (incompressible::turbulenceModel::New(U, phi, _laminarTransport())).ptr()
-    );
 }

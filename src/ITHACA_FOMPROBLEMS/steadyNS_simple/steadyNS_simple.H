@@ -77,7 +77,9 @@ class steadyNS_simple: public steadyNS
         /// Initialization for the full velocity linear system.
         fvVectorMatrix* Ueqn_global;
         /// Initialization for the full pressure linear system.
-        fvScalarMatrix* Peqn_global;
+        //fvScalarMatrix* Peqn_global;
+        /// Initialization for the fluxes;
+        autoPtr<surfaceScalarField> phiHbyA_global;
 
         //Functions
         ///
@@ -106,7 +108,7 @@ class steadyNS_simple: public steadyNS
         ///
         /// @param[in]  mu_now  Viscosity (parametrized) we want to solve the problem with.
         ///
-        void truthSolve2(List<scalar> mu_now);
+        void truthSolve2(List<scalar> mu_now, word Folder = "./ITHACAoutput/Offline/");
 };
 
 #endif
