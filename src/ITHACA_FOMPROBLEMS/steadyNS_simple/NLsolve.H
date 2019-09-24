@@ -44,21 +44,26 @@ while (simple.loop(runTime) && residual > tolerance && csolve < maxIter )
 while (simple.loop() && residual > tolerance && csolve < maxIter )
 #endif
 {
-    fvVectorMatrix UEqn(get_Umatrix(U));
-    Vector<double> uresidual_v = solve(UEqn == -fvc::grad(p)).initialResidual();
-    scalar C = 0;
+    fvVectorMatrix UEqn(get_Umatrix(U, p));
 
-    for (label i = 0; i < 3; i++)
+    if (simple.momentumPredictor())
     {
-        if (C < uresidual_v[i])
+        Vector<double> uresidual_v = solve(UEqn == -fvc::grad(p)).initialResidual();
+        fvOptions.correct(U);
+        scalar C = 0;
+
+        for (label i = 0; i < 3; i++)
         {
-            C = uresidual_v[i];
+            if (C < uresidual_v[i])
+            {
+                C = uresidual_v[i];
+            }
         }
+
+        uresidual = C;
     }
 
-    uresidual = C;
-    fvScalarMatrix Peqn (get_Pmatrix(p));
-
+    get_Pmatrix(U, p, presidual);
     residual = max(presidual, uresidual);
     Info << "Time = " << runTime.timeName() << nl << endl;
     laminarTransport.correct();

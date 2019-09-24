@@ -47,6 +47,10 @@ Description
 List<vector> moveBasis(const List<vector>& originalPoints, Eigen::MatrixXd par)
 {
         List<vector> movedPoints(originalPoints);
+        for(int i = 0; i<movedPoints.size();i++)
+        {
+            std::cout << i << std::endl;
+        }
         return movedPoints;
 }
 
@@ -181,12 +185,15 @@ class NS_geom_par : public steadyNS_simple
             );
 #include "createFields_aux.H"
             //#include "prepareRestart.H"
+            List<vector> up;
+            List<vector> bot;
             ITHACAutilities::getPointsFromPatch(mesh, 2, wing0, wing0_ind);
             ms = new RBFMotionSolver(mesh, *dyndict);
             vectorField motion(ms->movingPoints().size(), vector::zero);
             movingIDs = ms->movingIDs();
             x0 = ms->movingPoints();
             curX = x0;
+            exit(0);
             point0 = ms->curPoints();
             NmodesU = readInt(ITHACAdict->lookup("N_modes_U"));
             NmodesP = readInt(ITHACAdict->lookup("N_modes_P"));
@@ -287,15 +294,13 @@ class NS_geom_par : public steadyNS_simple
         {
             fvMesh& mesh = _mesh();
             Time& runTime = _runTime();
-            volScalarField& cv = _cv();
-            surfaceScalarField& phi = _phi();
+            volScalarField& cv = _cv();            
 
             if (offline)
             {
                 ITHACAstream::read_fields(Ufield, U, "./ITHACAoutput/Offline/");
                 ITHACAstream::read_fields(Pfield, p, "./ITHACAoutput/Offline/");
                 ITHACAstream::read_fields(Volumes, cv, "./ITHACAoutput/Offline/");
-                ITHACAstream::read_fields(phiField, phi, "./ITHACAoutput/Offline/");
                 volVectorField Usup("Usup", U);
                 ITHACAstream::read_fields(supfield, Usup, "./ITHACAoutput/supfield/");
             }
