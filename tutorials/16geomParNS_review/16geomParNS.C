@@ -44,39 +44,42 @@ Description
 #include "pointFields.H" //Perhaps not needed..?
 #include "pointPatchField.H"
 
-List<vector> moveBasis(const List<vector>& originalPoints, Eigen::MatrixXd par)
-{
-        List<vector> movedPoints(originalPoints);
-        for(int i = 0; i<movedPoints.size();i++)
-        {
-            std::cout << i << std::endl;
-        }
-        return movedPoints;
-}
-
 double f1(double chord, double x)
 {
-    double res = chord * (std::pow(x/chord,0.5)*(1-x/chord))/(std::exp(15*x/chord));
+    double res = chord * (std::pow((x+0.5)/chord,0.5)*(1-(x+0.5)/chord))/(std::exp(15*(x+0.5)/chord));
     return res;
 }
 
 double f2(double chord, double x)
 {
-    double res = chord * std::pow(std::sin(std::pow(M_PI*(x/chord),0.25)),3);
+    double res = chord * std::pow(std::sin(M_PI*std::pow((x+0.5)/chord,0.25)),3);
     return res;
 }
 
 double f3(double chord, double x)
 {
-    double res = chord * std::pow(std::sin(std::pow(M_PI*(x/chord),0.757)),3);
+    double res = chord * std::pow(std::sin(M_PI*std::pow((x+0.5)/chord,0.757)),3);
     return res;
 }
 
 double f4(double chord, double x)
 {
-    double res = chord * std::pow(std::sin(std::pow(M_PI*(x/chord),1.357)),3);
+    double res = chord * std::pow(std::sin(M_PI*std::pow((x+0.5)/chord,1.357)),3);
     return res;
 }
+
+List<vector> moveBasis(const List<vector>& originalPoints, Eigen::MatrixXd par1)
+{
+        List<vector> movedPoints(originalPoints);
+        for(int i = 0; i<originalPoints.size(); i++)
+        {
+            movedPoints[i][1]+= par1(0,0)*f1(1,movedPoints[i][0])+par1(0,1)*f2(1,movedPoints[i][0])+par1(0,2)*f3(1,movedPoints[i][0])+par1(0,3)*f4(1,movedPoints[i][0]);
+        }
+
+        return movedPoints;
+}
+
+
 
 class DEIM_functionU : public DEIM<fvVectorMatrix>
 {
@@ -185,15 +188,13 @@ class NS_geom_par : public steadyNS_simple
             );
 #include "createFields_aux.H"
             //#include "prepareRestart.H"
-            List<vector> up;
-            List<vector> bot;
-            ITHACAutilities::getPointsFromPatch(mesh, 2, wing0, wing0_ind);
+            ITHACAutilities::getPointsFromPatch(mesh, 0, top0, top0_ind);
+            ITHACAutilities::getPointsFromPatch(mesh, 1, bot0, bot0_ind);
             ms = new RBFMotionSolver(mesh, *dyndict);
             vectorField motion(ms->movingPoints().size(), vector::zero);
             movingIDs = ms->movingIDs();
             x0 = ms->movingPoints();
             curX = x0;
-            exit(0);
             point0 = ms->curPoints();
             NmodesU = readInt(ITHACAdict->lookup("N_modes_U"));
             NmodesP = readInt(ITHACAdict->lookup("N_modes_P"));
@@ -263,6 +264,9 @@ class NS_geom_par : public steadyNS_simple
         RBFMotionSolver* ms;
 
         List<vector> wing0;
+        List<vector> top0;
+        List<vector> bot0;
+
         vectorField point0;
 
         vectorField point;
@@ -272,6 +276,8 @@ class NS_geom_par : public steadyNS_simple
         List<vector> curX;
 
         labelList wing0_ind;
+        labelList top0_ind;
+        labelList bot0_ind;
 
         // Reduced Matrices DEIM
         std::vector<Eigen::MatrixXd> ReducedMatricesAU;
@@ -290,7 +296,7 @@ class NS_geom_par : public steadyNS_simple
 
         // DEIM_function* DEIMmatrice;
 
-        void OfflineSolve(Eigen::VectorXd pars, word Folder)
+        void OfflineSolve(Eigen::MatrixXd parTop, Eigen::MatrixXd parBot, word Folder)
         {
             fvMesh& mesh = _mesh();
             Time& runTime = _runTime();
@@ -307,10 +313,11 @@ class NS_geom_par : public steadyNS_simple
 
             else
             {
-                for (int k = 0; k < pars.rows(); k++)
+                for (int k = 0; k < parTop.rows(); k++)
                 {
                     List<scalar> par(1);
-                    updateMesh(pars[k]);
+                    updateMesh2(parTop.row(k),parBot.row(k));
+                    ITHACAstream::writePoints(mesh.points(), Folder, name(k + 1) + "/polyMesh/");
                     truthSolve2(par, Folder);
                     cv.ref() = mesh.V();
                     Volumes.append(cv);
@@ -318,7 +325,6 @@ class NS_geom_par : public steadyNS_simple
                     ITHACAstream::exportSolution(cv, name(k + 1), Folder);
                     ITHACAstream::exportSolution(p, name(k + 1), Folder);
                     solveOneSup(p, k);
-                    ITHACAstream::writePoints(mesh.points(), Folder, name(k + 1) + "/polyMesh/");
                     restart();
                 }
             }
@@ -391,12 +397,14 @@ class NS_geom_par : public steadyNS_simple
             mesh.movePoints(point);
         }
 
-        void updateMesh2(Eigen::MatrixXd par)
+        void updateMesh2(Eigen::MatrixXd parTop, Eigen::MatrixXd parBot)
         {
             fvMesh& mesh = _mesh();
             mesh.movePoints(point0);
-            List<vector> wing0_cur = moveBasis(wing0, par);
-            ITHACAutilities::setIndices2Value(wing0_ind, wing0_cur, movingIDs, curX);
+            List<vector> top0_cur = moveBasis(top0, parTop);
+            List<vector> bot0_cur = moveBasis(bot0, parBot);
+            ITHACAutilities::setIndices2Value(top0_ind, top0_cur, movingIDs, curX);
+            ITHACAutilities::setIndices2Value(bot0_ind, bot0_cur, movingIDs, curX);
             ms->setMotion(curX - x0);
             point = ms->curPoints();
             mesh.movePoints(point);
@@ -415,8 +423,8 @@ class NS_geom_par : public steadyNS_simple
             volVectorField& U = _U();
             volScalarField& p = _p();
             surfaceScalarField& phi = _phi();
-            DEIMU = new DEIM_functionU(UEqnList, NmodesDEIMAU, NmodesDEIMBU, "U_matrix");
-            DEIMP = new DEIM_functionP(PEqnList, NmodesDEIMAP, NmodesDEIMBP, "P_matrix");
+            //DEIMU = new DEIM_functionU(UEqnList, NmodesDEIMAU, NmodesDEIMBU, "U_matrix");
+            //DEIMP = new DEIM_functionP(PEqnList, NmodesDEIMAP, NmodesDEIMBP, "P_matrix");
             ULmodes.resize(0);
             PLmodes.resize(0);
 
@@ -445,23 +453,23 @@ class NS_geom_par : public steadyNS_simple
             ULmodes.toEigen();
             PLmodes.toEigen();
 
-            for (int i = 0; i < NmodesDEIMAU; i++)
-            {
-                ReducedMatricesAU[i] = ULmodes.EigenModes[0].transpose() *
-                                       DEIMU->MatrixOnlineA[i] *
-                                       ULmodes.EigenModes[0];
-            }
+            // for (int i = 0; i < NmodesDEIMAU; i++)
+            // {
+            //     ReducedMatricesAU[i] = ULmodes.EigenModes[0].transpose() *
+            //                            DEIMU->MatrixOnlineA[i] *
+            //                            ULmodes.EigenModes[0];
+            // }
 
-            ReducedVectorsBU = ULmodes.EigenModes[0].transpose() * DEIMU->MatrixOnlineB;
+            // ReducedVectorsBU = ULmodes.EigenModes[0].transpose() * DEIMU->MatrixOnlineB;
 
-            for (int i = 0; i < NmodesDEIMAP; i++)
-            {
-                ReducedMatricesAP[i] = PLmodes.EigenModes[0].transpose() *
-                                       DEIMP->MatrixOnlineA[i] *
-                                       PLmodes.EigenModes[0];
-            }
+            // for (int i = 0; i < NmodesDEIMAP; i++)
+            // {
+            //     ReducedMatricesAP[i] = PLmodes.EigenModes[0].transpose() *
+            //                            DEIMP->MatrixOnlineA[i] *
+            //                            PLmodes.EigenModes[0];
+            // }
 
-            ReducedVectorsBP = PLmodes.EigenModes[0].transpose() * DEIMP->MatrixOnlineB;
+            // ReducedVectorsBP = PLmodes.EigenModes[0].transpose() * DEIMP->MatrixOnlineB;
         }
 
 };
@@ -639,8 +647,10 @@ int main(int argc, char* argv[])
         parAlpha = ITHACAutilities::rand(100, 1, -10, 10);
         ITHACAstream::exportMatrix(parAlpha, "angles", "eigen", "./");
     }
+    Eigen::MatrixXd parTop = ITHACAutilities::rand(100, 4, 0, 0.02);
+    Eigen::MatrixXd parBot = ITHACAutilities::rand(100, 4, -0.02, 0);
 
-    example.OfflineSolve(parAlpha.leftCols(1), "./ITHACAoutput/Offline/");
+    example.OfflineSolve(parTop, parBot, "./ITHACAoutput/Offline/");
     ITHACAstream::read_fields(example.liftfield, example.U, "./lift/");
     example.inletIndex.resize(1, 2);
     example.inletIndex(0, 0) = 0;

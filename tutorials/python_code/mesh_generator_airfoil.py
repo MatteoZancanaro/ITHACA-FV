@@ -41,10 +41,17 @@ Nl2 = 100
 Nl3 = 1
 
 #Number of meshes on the front part of airfoil edges p8-p9 and p8-p10b TODO calc it based on number of elements on the spline
-Nl4 = 50
+# Bottom
+Nl4 = 25
+# Top
+Nl6 = 40
 
 #Number of meshes on the back part of airfoil edges p9-p11 and p10-p11 TODO calc it based on number of elements on the spline
-Nl5 = 71
+# Bottom
+Nl5 = 120
+
+# Top
+Nl7 = 80
 
 #Number of interpolation points along the airfoil for defining the splines
 Naf = 50
@@ -58,10 +65,17 @@ E1 = 50
 E2 = 100
 
 #Expansion ratio in inlet
-E3 = 5
+# BOT
+E3B = 1
+# TOP
+E3T = 1
+
 
 #Expansion ratio in inlet2
-E5 = 0.5
+# TOP
+E5T = 1
+# BOT
+E5B = 1
 
 #Expansion ratio in y
 E4 = 1/E1
@@ -102,12 +116,12 @@ xlor = xlo*np.cos(-angle*pi/180) - zlo*np.sin(-angle*pi/180)
 zlor = xlo*np.sin(-angle*pi/180) + zlo*np.cos(-angle*pi/180)
 xp08 = xupr[-1]
 yp08 = zupr[-1]
-xp09 = xupr[int(len(xupr)*0.6)]
-yp09 = zupr[int(len(zupr)*0.6)]
+xp09 = xupr[int(len(xupr)*0.7)]
+yp09 = zupr[int(len(zupr)*0.7)]
 xp11 = xupr[0]
 yp11 = zupr[0]
-xp10 = xlor[int(len(xlor)*0.4)]
-yp10 = zlor[int(len(zlor)*0.4)]
+xp10 = xlor[int(len(xlor)*0.2)]
+yp10 = zlor[int(len(zlor)*0.2)]
 plt.plot(xupr,zupr)
 plt.plot(xlor,zlor)
 plt.plot(xp08,yp08,"*")
@@ -136,8 +150,8 @@ P08 = [xp08,yp08,0.0]
 P11 = [xp11,yp11,0.0]
 P09 = [xp09,yp09,0.0]
 P10 = [xp10,yp10,0.0]
-P07 = [0.0,L1,0.0,0.0]
-P01 = [0.0,-L1,0.0,0.0]
+P07 = [-L1,L1,0.0,0.0]
+P01 = [-L1,-L1,0.0,0.0]
 P00 = [-L1,0.0,0.0]
 P04 = [L2 + P11[0],0.0,0.0]
 P02 = [P11[0],P01[1],0.0]
@@ -272,14 +286,14 @@ print("hex (0 1 10 8 12 13 22 20)")
 print("square")
 print("("+str(Nl4)+" "+str(Nl1)+" 1)")
 print("simpleGrading")
-print("("+str(E3)+" "+str(E4)+" 1)\n")
+print("("+str(E3B)+" "+str(E4)+" 1)\n")
 
 print("// Block 1")
 print("hex (1 2 11 10 13 14 23 22)")
 print("square")
 print("("+str(Nl5)+" "+str(Nl1)+" 1)")
 print("simpleGrading")
-print("("+str(E5)+" "+str(E4)+" 1)\n")
+print("("+str(E5B)+" "+str(E4)+" 1)\n")
 
 print("// Block 2")
 print("hex (2 3 4 11 14 15 16 23)")
@@ -298,25 +312,25 @@ print("("+str(E2)+" "+str(E1)+" 1)\n")
 print("// Block 4")
 print("hex (9 11 6 7 21 23 18 19)")
 print("square")
-print("("+str(Nl5)+" "+str(Nl1)+" 1)")
+print("("+str(Nl7)+" "+str(Nl1)+" 1)")
 print("simpleGrading")
-print("("+str(E5)+" "+str(E1)+" 1)\n")
+print("("+str(E5T)+" "+str(E1)+" 1)\n")
 
 print("// Block 5")
 print("hex (8 9 7 0 20 21 19 12)")
 print("square")
-print("("+str(Nl4)+" "+str(Nl1)+" 1)")
+print("("+str(Nl6)+" "+str(Nl1)+" 1)")
 print("simpleGrading")
-print("("+str(E3)+" "+str(E1)+" 1)\n")
+print("("+str(E3T)+" "+str(E1)+" 1)\n")
 
 print(");")
 
 ## Print Edges
 print("edges\n(")
-print("arc 0 7 ("+str(PAU[0])+" "+str(PAU[1])+" "+str(PAU[2])+")")
-print("arc 0 1 ("+str(PAB[0])+" "+str(PAB[1])+" "+str(PAB[2])+")")
-print("arc 12 19 ("+str(PAU2[0])+" "+str(PAU2[1])+" "+str(PAU2[2])+")")
-print("arc 12 13 ("+str(PAB2[0])+" "+str(PAB2[1])+" "+str(PAB2[2])+")")
+# print("arc 0 7 ("+str(PAU[0])+" "+str(PAU[1])+" "+str(PAU[2])+")")
+# print("arc 0 1 ("+str(PAB[0])+" "+str(PAB[1])+" "+str(PAB[2])+")")
+# print("arc 12 19 ("+str(PAU2[0])+" "+str(PAU2[1])+" "+str(PAU2[2])+")")
+# print("arc 12 13 ("+str(PAB2[0])+" "+str(PAB2[1])+" "+str(PAB2[2])+")")
 
 print("spline 8 10")
 print("(")
@@ -369,13 +383,13 @@ print(");")
 
 print("boundary\n(")
 print("    top\n{")
-print("        type walls;\nfaces\n(")
+print("        type wall;\nfaces\n(")
 print("        (8 9 21 20)")
 print("        (9 11 23 21)")
 print("    );\n}")
 print("    ")
 print("    bottom\n{")
-print("        type walls;\nfaces\n(")
+print("        type wall;\nfaces\n(")
 print("        (8 10 22 20)")
 print("        (10 11 23 22)")
 print("    );\n}")
@@ -406,13 +420,18 @@ print("    outlet\n{")
 print("        type patch;\nfaces\n(")
 print("        (4 5 17 16)")
 print("        (3 4 16 15)")
+print("    );\n}")
+print("    ")
+print("    sides\n{")
+print("        type patch;\nfaces\n(")
 print("        (6 7 19 18)")
 print("        (5 6 18 17)")
 print("        (2 3 15 14)")
 print("        (1 2 14 13)")
 print("    );\n}")
-print(");")
+print("    ")
 print("")
+print("    );\n")
 print("mergePatchPairs")
 print("(")
 print(");")

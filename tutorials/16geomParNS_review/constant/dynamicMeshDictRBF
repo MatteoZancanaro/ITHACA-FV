@@ -37,22 +37,22 @@ motionSolverLibs ("libRBFMotionSolver.so");
 motionSolver    RBFMotionSolver;
 movingPatches (top bottom);
 staticPatches (inlet outlet);
-coarseningRatio 5;
+coarseningRatio 1;
 
 includeStaticPatches   false;
-frozenInterpolation    true;
+frozenInterpolation    false;
 
 interpolation
 {
-    RBF Gauss;
+    RBF W2;
     focalPoint (0 0 0);
     innerRadius 0.0;//5.0
-    outerRadius 200;
+    outerRadius 7;
     polynomials true;
 
     W2Coeffs
     {
-        radius     1;
+        radius     0.1;
     }
     TPSCoeffs
     {
@@ -60,7 +60,7 @@ interpolation
     }
     GaussCoeffs
     {
-        radius     1;
+        radius     0.1;
     }
     IMQBCoeffs
     {
