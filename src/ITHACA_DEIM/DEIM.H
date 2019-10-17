@@ -206,11 +206,6 @@ class DEIM
                             int& xyz_colA);
 
         ///
-        /// @brief      { function_description }
-        ///
-        /// @param      ind_rowA  The ind row a
-        /// @param      xyz_rowA  The xyz row a
-        ///
         void check3DIndices(int& ind_rowA, int& xyz_rowA);
 
 };
