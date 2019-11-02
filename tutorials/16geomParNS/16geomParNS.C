@@ -270,8 +270,8 @@ class NS_geom_par : public SteadyNSSimple
                 ITHACAstream::read_fields(Pfield, p, "./ITHACAoutput/Offline/");
                 ITHACAstream::read_fields(Volumes, cv, "./ITHACAoutput/Offline/");
                 //ITHACAstream::read_fields(phiField, phi, "./ITHACAoutput/Offline/");
-                volVectorField Usup("Usup", U);
-                ITHACAstream::read_fields(supfield, Usup, "./ITHACAoutput/supfield/");
+                //volVectorField Usup("Usup", U);
+                //ITHACAstream::read_fields(supfield, Usup, "./ITHACAoutput/supfield/");
             }
             else
             {
@@ -286,7 +286,7 @@ class NS_geom_par : public SteadyNSSimple
                     ITHACAstream::exportSolution(U, name(k + 1), Folder);
                     ITHACAstream::exportSolution(cv, name(k + 1), Folder);
                     ITHACAstream::exportSolution(p, name(k + 1), Folder);
-                    solveOneSup(p, k);
+                    //solveOneSup(p, k);
                     restart();
                 }
             }
@@ -340,6 +340,7 @@ class NS_geom_par : public SteadyNSSimple
         void restart()
         {
             fvMesh& mesh = _mesh();
+            mesh.movePoints(point0);
             volScalarField& p = _p();
             volVectorField& U = _U();
             surfaceScalarField& phi = _phi();
@@ -348,7 +349,7 @@ class NS_geom_par : public SteadyNSSimple
             phi = _phi0();
         }
 
-        void updateMesh(double par)
+        void updateMesh(double par=0)
         {
             fvMesh& mesh = _mesh();
             mesh.movePoints(point0);
@@ -471,7 +472,7 @@ class reducedSimpleSteadyNSGeo : public reducedSimpleSteadyNS
             float normalizedResidualLim =
                 para.ITHACAdict->lookupOrDefault<float>("normalizedResidualLim", 1e-5);
             scalar residual_jump(1 + residualJumpLim);
-            problem->restart();
+            //problem->restart();
             volVectorField Uaux("U", problem->_U());
             volScalarField Paux("p", problem->_p());
             volScalarField& p = problem->_p();
@@ -522,6 +523,7 @@ class reducedSimpleSteadyNSGeo : public reducedSimpleSteadyNS
                 //phi = fvc::flux(Uaux);
                 phi = fvc::flux(UEqn.H() / UEqn.A());
                 List<Eigen::MatrixXd> RedLinSysP;
+                int i = 0;
                 while (simple.correctNonOrthogonal())
         		{
 	                fvScalarMatrix pEqn
@@ -536,10 +538,24 @@ class reducedSimpleSteadyNSGeo : public reducedSimpleSteadyNS
 	                //RedLinSysP.resize(2);
 	                //RedLinSysP[0] = AP;
 	                //RedLinSysP[1] = problem->ReducedVectorsBP * thetaonBP;
+                    //List<Eigen::MatrixXd> RedLinSysP = problem->Pmodes.project(pEqn, PprojN);
 	                RedLinSysP = problem->Pmodes.project(pEqn, PprojN);
-	                b = reducedProblem::solveLinearSys(RedLinSysP, b, presidual);
-	                problem->Pmodes.reconstruct(Paux, b, "p");
-                	phi -= pEqn.flux();
+                    if (i == 0)
+                    {
+	                   b = reducedProblem::solveLinearSys(RedLinSysP, b, presidual);
+                    }
+                    else
+                    {
+                       Eigen::VectorXd dummy;
+                       b = reducedProblem::solveLinearSys(RedLinSysP, b, dummy); 
+                    }
+	                if (simple.finalNonOrthogonalIter())
+                    {
+                        phi -= pEqn.flux();
+                    }
+                    problem->Pmodes.reconstruct(Paux, b, "p");
+                    i++;
+         
                 }
                 Paux.relax();
                 uresidualOld = uresidualOld - uresidual;
@@ -597,13 +613,13 @@ int main(int argc, char* argv[])
     example.OfflineSolve(parAlpha.leftCols(1), "./ITHACAoutput/Offline/");
     ITHACAstream::read_fields(example.liftfield, example.U, "./lift/");
     example.inletIndex.resize(1, 2);
-    example.inletIndex(0, 0) = 0;
+    example.inletIndex(0, 0) = 3;
     example.inletIndex(0, 1) = 0;
     ITHACAutilities::normalizeFields(example.liftfield);
-    example.updateMesh(parAlpha(0) * 0);
+    example.updateMesh();
     // Homogenize the snapshots
     example.computeLift(example.Ufield, example.liftfield, example.Uomfield);
-    example.updateMesh(parAlpha(0) * 0);
+    //example.updateMesh(parAlpha(0) * 0);
     // Perform POD on velocity and pressure and store the first 10 modes
     ITHACAPOD::getModes(example.Uomfield, example.Umodes, example.Volumes,
                         example.podex, 0, 0,
@@ -648,20 +664,25 @@ int main(int argc, char* argv[])
 
     for (int i = 0; i < onlineAlpha.rows(); i++)
     {
-        example.updateMesh(onlineAlpha(i, 0));
+        //example.updateMesh(onlineAlpha(i, 0));
+        checkOff.restart();
         checkOff.updateMesh(onlineAlpha(i, 0));
-        /// Offline part;
+
+        //Offline part;
         checkOff.truthSolve2(par, "./ITHACAoutput/checkOff/");
         Ufull.append(checkOff._U());
         Pfull.append(checkOff._p());
         ITHACAstream::exportSolution(checkOff._U(), name(i + 1),
-                                     "./ITHACAoutput/checkOff/");
+                                    "./ITHACAoutput/checkOff/");
         ITHACAstream::exportSolution(checkOff._p(), name(i + 1),
-                                     "./ITHACAoutput/checkOff/");
+                                    "./ITHACAoutput/checkOff/");
         ITHACAstream::writePoints(checkOff._mesh().points(), "./ITHACAoutput/checkOff/",
-                                  name(i + 1) + "/polyMesh/");
+                                 name(i + 1) + "/polyMesh/");
+        example.restart();
+        example.updateMesh(onlineAlpha(i, 0));
+        //Info << reduced->_mesh().points() - checkOff._mesh().points() << endl;
         reduced.solveOnline_Simple(1, example.NmodesU, example.NmodesP,
-                                   example.NmodesSUP, "./ITHACAoutput/checkOff/");
+                                 example.NmodesSUP, "./ITHACAoutput/checkOff/");
     }
 
     ITHACAstream::read_fields(Ured, Uaux, "./ITHACAoutput/checkOff/");

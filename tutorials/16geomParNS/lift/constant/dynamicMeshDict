@@ -23,30 +23,30 @@ staticPatches (inlet outlet);
 coarseningRatio 12;
 
 includeStaticPatches   true;
-frozenInterpolation    true;
+frozenInterpolation    false;
 
 interpolation
 {
     RBF  Gauss;
     focalPoint (0 0 0);
-    innerRadius 5;//5.0
-    outerRadius 10;
-    polynomials true;
+    innerRadius 0.0;//5.0
+    outerRadius 100;
+    polynomials false;
 
     W2Coeffs
     {
-        radius     0.2;
+        radius     1;
     }
     TPSCoeffs
     {
-        radius     0.4;
+        radius     4;
     }
     GaussCoeffs
     {
-        radius     0.8;
+        radius     0.5;
     }
     IMQBCoeffs
     {
-        radius     0.2;
+        radius     0.1;
     }
 }
