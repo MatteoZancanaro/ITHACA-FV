@@ -36,95 +36,12 @@ Description
 #include "ITHACAPOD.H"
 #include "ITHACAutilities.H"
 #include <Eigen/Dense>
-#include "DEIM.H"
 #include "EigenFunctions.H"
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include "pointMesh.H" //Perhaps not needed..?
 #include "pointFields.H" //Perhaps not needed..?
 #include "pointPatchField.H"
-
-class DEIM_functionU : public DEIM<fvVectorMatrix>
-{
-    public:
-        using DEIM::DEIM;
-
-        Eigen::MatrixXd onlineCoeffsA(fvVectorMatrix Ueqn)
-        {
-            Eigen::MatrixXd theta(magicPointsA.size(), 1);
-
-            for (int i = 0; i < magicPointsA.size(); i++)
-            {
-                Eigen::SparseMatrix<double> Mr;
-                Foam2Eigen::fvMatrix2EigenM(Ueqn, Mr);
-                int ind_row = magicPointsA[i][0] + xyz_A[i].first() *
-                              sizeM;;
-                int ind_col = magicPointsA[i][1] + xyz_A[i].second() *
-                              sizeM;
-                theta(i) = Mr.coeffRef(ind_row, ind_col);
-            }
-
-            return theta;
-        }
-
-        Eigen::MatrixXd onlineCoeffsB(fvVectorMatrix Ueqn)
-        {
-            Eigen::MatrixXd theta(magicPointsB.size(), 1);
-
-            for (int i = 0; i < magicPointsB.size(); i++)
-            {
-                Eigen::VectorXd br;
-                Foam2Eigen::fvMatrix2EigenV(Ueqn, br);
-                int ind_row = magicPointsB[i] + xyz_B[i] * sizeM;
-                theta(i) = br(ind_row);
-            }
-
-            return theta;
-        }
-
-
-};
-
-class DEIM_functionP : public DEIM<fvScalarMatrix>
-{
-    public:
-        using DEIM::DEIM;
-
-        Eigen::MatrixXd onlineCoeffsA(fvScalarMatrix Peqn)
-        {
-            Eigen::MatrixXd theta(magicPointsA.size(), 1);
-
-            for (int i = 0; i < magicPointsA.size(); i++)
-            {
-                Eigen::SparseMatrix<double> Mr;
-                Foam2Eigen::fvMatrix2EigenM(Peqn, Mr);
-                int ind_row = magicPointsA[i][0] + xyz_A[i].first() *
-                              sizeM;;
-                int ind_col = magicPointsA[i][1] + xyz_A[i].second() *
-                              sizeM;
-                theta(i) = Mr.coeffRef(ind_row, ind_col);
-            }
-
-            return theta;
-        }
-
-        Eigen::MatrixXd onlineCoeffsB(fvScalarMatrix Peqn)
-        {
-            Eigen::MatrixXd theta(magicPointsA.size(), 1);
-
-            for (int i = 0; i < magicPointsA.size(); i++)
-            {
-                Eigen::VectorXd br;
-                Foam2Eigen::fvMatrix2EigenV(Peqn, br);
-                int ind_row = magicPointsB[i] + xyz_B[i] * sizeM;
-                theta(i) = br(ind_row);
-            }
-
-            return theta;
-        }
-
-
-};
 
 
 class NS_geom_par : public SteadyNSSimple
@@ -150,7 +67,6 @@ class NS_geom_par : public SteadyNSSimple
                 )
             );
 #include "createFields_aux.H"
-            //#include "prepareRestart.H"
             ITHACAutilities::getPointsFromPatch(mesh, 0, wingTop, wingTop_ind);
             ITHACAutilities::getPointsFromPatch(mesh, 1, wingBottom, wingBottom_ind);
             ms = new RBFMotionSolver(mesh, *dyndict);
@@ -162,10 +78,7 @@ class NS_geom_par : public SteadyNSSimple
             NmodesU = readInt(ITHACAdict->lookup("N_modes_U"));
             NmodesP = readInt(ITHACAdict->lookup("N_modes_P"));
             NmodesSUP = readInt(ITHACAdict->lookup("N_modes_SUP"));
-            NmodesDEIMAU = readInt(ITHACAdict->lookup("N_modes_DEIM_A_U"));
-            NmodesDEIMBU = readInt(ITHACAdict->lookup("N_modes_DEIM_B_U"));
-            NmodesDEIMAP = readInt(ITHACAdict->lookup("N_modes_DEIM_A_P"));
-            NmodesDEIMBP = readInt(ITHACAdict->lookup("N_modes_DEIM_B_P"));
+    
             axis = Foam::vector(0, 0, 1);
             ITHACAutilities::createSymLink("./ITHACAoutput/supfield");
         }
@@ -173,16 +86,10 @@ class NS_geom_par : public SteadyNSSimple
         int NmodesU;
         int NmodesP;
         int NmodesSUP;
-        int NmodesDEIMAU;
-        int NmodesDEIMBU;
-        int NmodesDEIMAP;
-        int NmodesDEIMBP;
 
         /// Lifted velocity modes.
         Modes<vector> ULmodes;
         Modes<scalar> PLmodes;
-
-
 
         volScalarField& p;
         volVectorField& U;
@@ -194,28 +101,6 @@ class NS_geom_par : public SteadyNSSimple
 
         autoPtr<volScalarField> _nut;
         autoPtr<volScalarField> _nuTilda;
-
-        DEIM_functionU* DEIMU;
-        DEIM_functionP* DEIMP;
-
-        PtrList<volVectorField> fieldsUA_U;
-        PtrList<volVectorField> fieldsUB_U;
-        PtrList<volVectorField> fieldsUA_P;
-        PtrList<volVectorField> fieldsUB_P;
-
-        PtrList<volScalarField> fieldsPA_U;
-        PtrList<volScalarField> fieldsPB_U;
-        PtrList<volScalarField> fieldsPA_P;
-        PtrList<volScalarField> fieldsPB_P;
-
-        PtrList<surfaceScalarField> fieldsphiA_U;
-        PtrList<surfaceScalarField> fieldsphiB_U;
-        PtrList<surfaceScalarField> fieldsphiA_P;
-        PtrList<surfaceScalarField> fieldsphiB_P;
-
-        std::chrono::duration<double> elapsed;
-        std::chrono::duration<double> elapsedON;
-        std::chrono::duration<double> elapsedOFF;
 
         autoPtr<RBFMotionSolver> RBFmotionPtr;
         autoPtr<volScalarField> _cv;
@@ -240,22 +125,12 @@ class NS_geom_par : public SteadyNSSimple
         labelList wingTop_ind;
         labelList wingBottom_ind;
 
-        // Reduced Matrices DEIM
-        std::vector<Eigen::MatrixXd> ReducedMatricesAU;
-        Eigen::MatrixXd ReducedVectorsBU;
-        std::vector<Eigen::MatrixXd> ReducedMatricesAP;
-        Eigen::MatrixXd ReducedVectorsBP;
-        Eigen::MatrixXd ModesUEig;
-        Eigen::MatrixXd ModesPEig;
-
         PtrList<volScalarField> Volumes;
         PtrList<volScalarField> Tfield_new;
         PtrList<volScalarField> Volumes_new;
 
 
 
-
-        // DEIM_function* DEIMmatrice;
 
         void OfflineSolve(Eigen::VectorXd pars, word Folder)
         {
@@ -269,9 +144,6 @@ class NS_geom_par : public SteadyNSSimple
                 ITHACAstream::read_fields(Ufield, U, "./ITHACAoutput/Offline/");
                 ITHACAstream::read_fields(Pfield, p, "./ITHACAoutput/Offline/");
                 ITHACAstream::read_fields(Volumes, cv, "./ITHACAoutput/Offline/");
-                //ITHACAstream::read_fields(phiField, phi, "./ITHACAoutput/Offline/");
-                //volVectorField Usup("Usup", U);
-                //ITHACAstream::read_fields(supfield, Usup, "./ITHACAoutput/supfield/");
             }
             else
             {
@@ -286,7 +158,6 @@ class NS_geom_par : public SteadyNSSimple
                     ITHACAstream::exportSolution(U, name(k + 1), Folder);
                     ITHACAstream::exportSolution(cv, name(k + 1), Folder);
                     ITHACAstream::exportSolution(p, name(k + 1), Folder);
-                    //solveOneSup(p, k);
                     restart();
                 }
             }
@@ -360,64 +231,6 @@ class NS_geom_par : public SteadyNSSimple
             ms->setMotion(curX - x0);
             mesh.movePoints(ms->curPoints());
         }
-
-        void PODDEIM()
-        {
-            PODDEIM(NmodesU, NmodesP, NmodesSUP, NmodesDEIMAU, NmodesDEIMBU, NmodesDEIMAP,
-                    NmodesDEIMBP);
-        }
-
-        void PODDEIM(int NmodesU, int NmodesP, int NmodesSUP, int NmodesDEIMAU,
-                     int NmodesDEIMBU, int NmodesDEIMAP, int NmodesDEIMBP)
-        {
-            volVectorField& U = _U();
-            volScalarField& p = _p();
-            surfaceScalarField& phi = _phi();
-            // DEIMU = new DEIM_functionU(UEqnList, NmodesDEIMAU, NmodesDEIMBU, "U_matrix");
-            // DEIMP = new DEIM_functionP(PEqnList, NmodesDEIMAP, NmodesDEIMBP, "P_matrix");
-            ULmodes.resize(0);
-            PLmodes.resize(0);
-
-            for (int i = 0; i < inletIndex.rows(); i++)
-            {
-                ULmodes.append(liftfield[i]);
-            }
-
-            for (int i = 0; i < NmodesU; i++)
-            {
-                ULmodes.append(Umodes.toPtrList()[i]);
-            }
-
-            for (int i = 0; i < NmodesSUP; i++)
-            {
-                ULmodes.append(supmodes.toPtrList()[i]);
-            }
-
-            for (int i = 0; i < NmodesP; i++)
-            {
-                PLmodes.append(Pmodes.toPtrList()[i]);
-            }
-
-            // ReducedMatricesAU.resize(NmodesDEIMAU);
-            // ReducedMatricesAP.resize(NmodesDEIMAP);
-            // ULmodes.toEigen();
-            // PLmodes.toEigen();
-            // for (int i = 0; i < NmodesDEIMAU; i++)
-            // {
-            //     ReducedMatricesAU[i] = ULmodes.EigenModes[0].transpose() *
-            //                            DEIMU->MatrixOnlineA[i] *
-            //                            ULmodes.EigenModes[0];
-            // }
-            // ReducedVectorsBU = ULmodes.EigenModes[0].transpose() * DEIMU->MatrixOnlineB;
-            // for (int i = 0; i < NmodesDEIMAP; i++)
-            // {
-            //     ReducedMatricesAP[i] = PLmodes.EigenModes[0].transpose() *
-            //                            DEIMP->MatrixOnlineA[i] *
-            //                            PLmodes.EigenModes[0];
-            // }
-            // ReducedVectorsBP = PLmodes.EigenModes[0].transpose() * DEIMP->MatrixOnlineB;
-        }
-
 };
 
 class reducedSimpleSteadyNSGeo : public reducedSimpleSteadyNS
@@ -495,28 +308,7 @@ class reducedSimpleSteadyNSGeo : public reducedSimpleSteadyNS
                     == -fvc::grad(Paux)
                 );
                 UEqn.relax();
-                // Eigen::MatrixXd thetaonA = problem->DEIMU->onlineCoeffsA(UEqn);
-                // Eigen::MatrixXd thetaonB = problem->DEIMU->onlineCoeffsB(UEqn);
-                // Eigen::SparseMatrix<double> Mr = problem->DEIMU->MatrixOnlineA[0]*thetaonA(0);
-                // Eigen::VectorXd Br = problem->DEIMU->MatrixOnlineB*thetaonB;
-                // Eigen::VectorXd Bf;
-                // Eigen::SparseMatrix<double> Af;
-                // Foam2Eigen::fvMatrix2EigenM(UEqn, Af);
-                // Foam2Eigen::fvMatrix2EigenV(UEqn, Bf);
-                // for (int i = 1; i < problem->DEIMU->MatrixOnlineA.size(); i++)
-                // {
-                //     Mr += problem->DEIMU->MatrixOnlineA[i]*thetaonA(i);
-                // }
-                // std::cout << (Af-Mr).sum() << std::endl;
-                // std::cout << (Af).sum() << std::endl;
-                // std::cout << (Bf-Br).sum() << std::endl;
-                // std::cout << (Bf).sum() << std::endl;
-                // exit(0);
-                //Eigen::MatrixXd A = EigenFunctions::MVproduct(problem->ReducedMatricesAU,thetaonA);
-                //List<Eigen::MatrixXd> RedLinSysU;
-                //RedLinSysU.resize(2);
-                //RedLinSysU[0] = A;
-                //RedLinSysU[1] = problem->ReducedVectorsBU * thetaonB;
+            
                 List<Eigen::MatrixXd> RedLinSysU = problem->ULmodes.project(UEqn, UprojN);
                 a = reducedProblem::solveLinearSys(RedLinSysU, a, uresidual, vel_now);
                 problem->ULmodes.reconstruct(Uaux, a, "U");
@@ -530,15 +322,7 @@ class reducedSimpleSteadyNSGeo : public reducedSimpleSteadyNS
 	                (
 	                    fvm::laplacian(1 / UEqn.A(), Paux) == fvc::div(phi)
 	                );
-	                //Eigen::MatrixXd thetaonAP = problem->DEIMP->onlineCoeffsA(pEqn);
-	                //Eigen::MatrixXd thetaonBP = problem->DEIMP->onlineCoeffsB(pEqn);
-	                //Eigen::MatrixXd AP = EigenFunctions::MVproduct(problem->ReducedMatricesAP,
-	                //                    thetaonAP);
-	                //List<Eigen::MatrixXd> RedLinSysP;
-	                //RedLinSysP.resize(2);
-	                //RedLinSysP[0] = AP;
-	                //RedLinSysP[1] = problem->ReducedVectorsBP * thetaonBP;
-                    //List<Eigen::MatrixXd> RedLinSysP = problem->Pmodes.project(pEqn, PprojN);
+	
 	                RedLinSysP = problem->Pmodes.project(pEqn, PprojN);
                     if (i == 0)
                     {
@@ -597,7 +381,11 @@ class reducedSimpleSteadyNSGeo : public reducedSimpleSteadyNS
 int main(int argc, char* argv[])
 {
     NS_geom_par example(argc, argv);
+    
+    //Create the offline and online parameter sets
     Eigen::MatrixXd parAlpha;
+    Eigen::MatrixXd onlineAlpha;
+    
     std::ifstream exFile("./angles_mat.txt");
 
     if (exFile)
@@ -609,32 +397,6 @@ int main(int argc, char* argv[])
         parAlpha = ITHACAutilities::rand(100, 1, -10, 10);
         ITHACAstream::exportMatrix(parAlpha, "angles", "eigen", "./");
     }
-
-    example.OfflineSolve(parAlpha.leftCols(1), "./ITHACAoutput/Offline/");
-    ITHACAstream::read_fields(example.liftfield, example.U, "./lift/");
-    example.inletIndex.resize(1, 2);
-    example.inletIndex(0, 0) = 3;
-    example.inletIndex(0, 1) = 0;
-    ITHACAutilities::normalizeFields(example.liftfield);
-    example.updateMesh();
-    // Homogenize the snapshots
-    example.computeLift(example.Ufield, example.liftfield, example.Uomfield);
-    //example.updateMesh(parAlpha(0) * 0);
-    // Perform POD on velocity and pressure and store the first 10 modes
-    ITHACAPOD::getModes(example.Uomfield, example.Umodes, example.Volumes,
-                        example.podex, 0, 0,
-                        example.NmodesU);
-    std::cout << example.NmodesP << std::endl;
-    ITHACAPOD::getModes(example.Pfield, example.Pmodes, example.Volumes,
-                        example.podex, 0, 0, example.NmodesP);
-    //ITHACAPOD::getModes(example.supfield, example.supmodes, example.supex,
-    //                    0, 1, example.NmodesSUP);
-    //    ITHACAPOD::getModes(example.phiField, example.phiModes, example.Uomfield, 0,
-    //                        0, 1, 8);
-    example.PODDEIM();
-    Eigen::MatrixXd vel(1, 1);
-    vel(0, 0) = 1;
-    Eigen::MatrixXd onlineAlpha;
 
     std::ifstream exFileOn("./angles_on_mat.txt");
 
@@ -648,7 +410,48 @@ int main(int argc, char* argv[])
         ITHACAstream::exportMatrix(onlineAlpha, "angles_on", "eigen", "./");
     }
 
-    //Eigen::MatrixXd onlineAlpha = ITHACAutilities::rand(50, 1, -9.5, 9.5);
+    example.OfflineSolve(parAlpha.leftCols(1), "./ITHACAoutput/Offline/");
+    ITHACAstream::read_fields(example.liftfield, example.U, "./lift/");
+    example.inletIndex.resize(1, 2);
+    example.inletIndex(0, 0) = 3;
+    example.inletIndex(0, 1) = 0;
+    ITHACAutilities::normalizeFields(example.liftfield);
+    //example.updateMesh();
+    // Homogenize the snapshots
+    example.computeLift(example.Ufield, example.liftfield, example.Uomfield);
+    ITHACAPOD::getModes(example.Uomfield, example.Umodes, example.Volumes,
+                        example.podex, 0, 0,
+                        example.NmodesU);
+    ITHACAPOD::getModes(example.Pfield, example.Pmodes, example.Volumes,
+                        example.podex, 0, 0, example.NmodesP);
+    //example.PODDEIM();
+
+    example.ULmodes.resize(0);
+    example.PLmodes.resize(0);
+
+    for (int i = 0; i < example.inletIndex.rows(); i++)
+    {
+        example.ULmodes.append(example.liftfield[i]);
+    }
+
+    for (int i = 0; i < example.NmodesU; i++)
+    {
+        example.ULmodes.append(example.Umodes.toPtrList()[i]);
+    }
+
+    for (int i = 0; i < example.NmodesSUP; i++)
+    {
+        example.ULmodes.append(example.supmodes.toPtrList()[i]);
+    }
+
+    for (int i = 0; i < example.NmodesP; i++)
+    {
+        example.PLmodes.append(example.Pmodes.toPtrList()[i]);
+    }
+
+    Eigen::MatrixXd vel(1, 1);
+    vel(0, 0) = 1;
+
     example.restart();
     reducedSimpleSteadyNSGeo reduced(example);
     reduced.setOnlineVelocity(vel);
@@ -678,18 +481,18 @@ int main(int argc, char* argv[])
                                     "./ITHACAoutput/checkOff/");
         ITHACAstream::writePoints(checkOff._mesh().points(), "./ITHACAoutput/checkOff/",
                                  name(i + 1) + "/polyMesh/");
+        
+        //Online part
         example.restart();
         example.updateMesh(onlineAlpha(i, 0));
-        //Info << reduced->_mesh().points() - checkOff._mesh().points() << endl;
         reduced.solveOnline_Simple(1, example.NmodesU, example.NmodesP,
                                  example.NmodesSUP, "./ITHACAoutput/checkOff/");
     }
 
     ITHACAstream::read_fields(Ured, Uaux, "./ITHACAoutput/checkOff/");
     ITHACAstream::read_fields(Pred, Paux, "./ITHACAoutput/checkOff/");
-    Eigen::MatrixXd errorU; // = ITHACAutilities::error_listfields(Ufull, Ured);
+    Eigen::MatrixXd errorU;
     Eigen::MatrixXd errorP = ITHACAutilities::error_listfields(Pfull, Pred);
-    //vector U_fs(1,0,0);
     dimensionedVector U_fs("U_fs", dimVelocity, vector(1, 0, 0));
     errorU.resize(Ufull.size(), 1);
 
