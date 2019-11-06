@@ -33,12 +33,14 @@ boundaryField
 
     top
     {
-        type            noSlip;
+        type            fixedValue;
+        value           uniform (0 0 0);
     }
 
     bottom
     {
-        type            noSlip;
+        type            fixedValue;
+        value           uniform (0 0 0);
     }
 
     frontAndBack
@@ -48,7 +50,8 @@ boundaryField
 
     sides
     {
-        type            slip;
+        type            fixedValue;
+        value           $internalField;
     }
 }
 

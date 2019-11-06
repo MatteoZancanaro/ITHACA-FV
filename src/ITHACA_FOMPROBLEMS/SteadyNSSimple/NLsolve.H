@@ -44,25 +44,65 @@ while (simple.loop(runTime) && residual > tolerance && csolve < maxIter )
 while (simple.loop() && residual > tolerance && csolve < maxIter )
 #endif
 {
-    fvVectorMatrix UEqn(get_Umatrix(U, p));
+    fvVectorMatrix UEqn
+    (
+        fvm::div(phi, Uaux)
+        + problem->turbulence->divDevReff(Uaux)
+        == -fvc::grad(Paux)
+    );
+    UEqn.relax();
+    List<Eigen::MatrixXd> RedLinSysU = problem->ULmodes.project(UEqn, UprojN);
+    a = reducedProblem::solveLinearSys(RedLinSysU, a, uresidual, vel_now);
+    problem->ULmodes.reconstruct(Uaux, a, "U");
+    //phi = fvc::flux(Uaux);
+    phi = fvc::flux(UEqn.H() / UEqn.A());
+    List<Eigen::MatrixXd> RedLinSysP;
+    int i = 0;
 
-    if (simple.momentumPredictor())
+    while (simple.correctNonOrthogonal())
     {
-        Vector<double> uresidual_v = solve(UEqn == -fvc::grad(p)).initialResidual();
-        fvOptions.correct(U);
-        scalar C = 0;
+        fvScalarMatrix pEqn
+        (
+            fvm::laplacian(1 / UEqn.A(), Paux) == fvc::div(phi)
+        );
+        RedLinSysP = problem->Pmodes.project(pEqn, PprojN);
 
-        for (label i = 0; i < 3; i++)
+        if (i == 0)
         {
-            if (C < uresidual_v[i])
-            {
-                C = uresidual_v[i];
-            }
+            b = reducedProblem::solveLinearSys(RedLinSysP, b, presidual);
         }
 
-        uresidual = C;
+        else
+        {
+            Eigen::VectorXd dummy;
+            b = reducedProblem::solveLinearSys(RedLinSysP, b, dummy);
+        }
+
+        if (simple.finalNonOrthogonalIter())
+        {
+            phi -= pEqn.flux();
+        }
+
+        problem->Pmodes.reconstruct(Paux, b, "p");
+        i++;
     }
 
+    Paux.relax();
+    fvVectorMatrix UEqn(get_Umatrix(U, p));
+    surfaceScalarField& phi = _phi();
+    Vector<double> uresidual_v = solve(UEqn == -fvc::grad(p)).initialResidual();
+    phi = fvc::flux(UEqn.H() / UEqn.A());
+    scalar C = 0;
+
+    for (label i = 0; i < 3; i++)
+    {
+        if (C < uresidual_v[i])
+        {
+            C = uresidual_v[i];
+        }
+    }
+
+    uresidual = C;
     get_Pmatrix(U, p, presidual);
     residual = max(presidual, uresidual);
     Info << "Time = " << runTime.timeName() << nl << endl;

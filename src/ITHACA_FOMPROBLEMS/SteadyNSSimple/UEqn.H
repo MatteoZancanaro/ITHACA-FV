@@ -26,15 +26,11 @@
 
 MRF.correctBoundaryVelocity(U);
 
-tmp<fvVectorMatrix> tUEqn
+fvVectorMatrix UEqn
 (
     fvm::div(phi, U)
-    + MRF.DDt(U)
     + turbulence->divDevReff(U)
-    ==
-    fvOptions(U)
-    );
-fvVectorMatrix& UEqn = tUEqn.ref();
+);
 
 UEqn.relax();
 

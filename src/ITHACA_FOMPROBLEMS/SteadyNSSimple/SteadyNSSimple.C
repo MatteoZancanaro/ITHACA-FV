@@ -47,100 +47,158 @@ SteadyNSSimple::SteadyNSSimple(int argc, char* argv[])
     Info << offline << endl;
 }
 
-fvVectorMatrix SteadyNSSimple::get_Umatrix(volVectorField& U,
-        volScalarField& p)
-{
-    IOMRFZoneList& MRF = _MRF();
-    surfaceScalarField& phi = _phi();
-    fv::options& fvOptions = _fvOptions();
-    MRF.correctBoundaryVelocity(U);
-    fvVectorMatrix Ueqn
-    (
-        fvm::div(phi, U)
-        + MRF.DDt(U)
-        + turbulence->divDevReff(U)
-        ==
-        fvOptions(U)
-    );
-    Ueqn.relax();
-    fvOptions.constrain(Ueqn);
-    Ueqn_global = &Ueqn;
-    return Ueqn;
-}
+// fvVectorMatrix SteadyNSSimple::get_Umatrix(volVectorField& U,
+//         volScalarField& p)
+// {
+//     surfaceScalarField& phi = _phi();
+//     fv::options& fvOptions = _fvOptions();
+//     fvVectorMatrix Ueqn
+//     (
+//         fvm::div(phi, U)
+//         + turbulence->divDevReff(U)
+//     );
+//     Ueqn.relax();
+//     Ueqn_global = &Ueqn;
+//     return Ueqn;
+// }
 
-fvScalarMatrix SteadyNSSimple::get_Pmatrix(volVectorField& U,
-        volScalarField& p, scalar& presidual)
-{
-    IOMRFZoneList& MRF = _MRF();
-    surfaceScalarField& phi = _phi();
-    simpleControl& simple = _simple();
-    fv::options& fvOptions = _fvOptions();
-    MRF.correctBoundaryVelocity(U);
-    fvMesh& mesh = _mesh();
-    volScalarField rAU(1.0 / Ueqn_global->A());
-    volVectorField HbyA(constrainHbyA(rAU * Ueqn_global->H(), U, p));
-    surfaceScalarField phiHbyA("phiHbyA", fvc::flux(HbyA));
-    MRF.makeRelative(phiHbyA);
-    adjustPhi(phiHbyA, U, p);
-    tmp<volScalarField> rAtU(rAU);
+// fvScalarMatrix SteadyNSSimple::get_Pmatrix(volVectorField& U,
+//         volScalarField& p, scalar& presidual)
+// {
+//     surfaceScalarField& phi = _phi();
+//     simpleControl& simple = _simple();
+//     fvMesh& mesh = _mesh();
+//     int i = 0;
 
-    if (simple.consistent())
-    {
-        rAtU = 1.0 / (1.0 / rAU - Ueqn_global->H1());
-        phiHbyA +=
-            fvc::interpolate(rAtU() - rAU) * fvc::snGrad(p) * mesh.magSf();
-        HbyA -= (rAU - rAtU()) * fvc::grad(p);
-    }
+//     while (simple.correctNonOrthogonal())
+//     {
+//         fvScalarMatrix pEqn
+//         (
+//             fvm::laplacian(rAtU(), p) == fvc::div(phiHbyA)
+//         );
+//         pEqn.setReference(pRefCell, pRefValue);
 
-    constrainPressure(p, U, phiHbyA, rAtU(), MRF);
-    int i = 0;
+//         if (i == 0)
+//         {
+//             presidual = pEqn.solve().initialResidual();
+//         }
 
-    while (simple.correctNonOrthogonal())
-    {
-        fvScalarMatrix pEqn
-        (
-            fvm::laplacian(rAtU(), p) == fvc::div(phiHbyA)
-        );
-        pEqn.setReference(pRefCell, pRefValue);
+//         else
+//         {
+//             pEqn.solve().initialResidual();
+//         }
 
-        if (i == 0)
-        {
-            presidual = pEqn.solve().initialResidual();
-        }
-        else
-        {
-            pEqn.solve().initialResidual();
-        }
+//         if (simple.finalNonOrthogonalIter())
+//         {
+//             phi = phiHbyA - pEqn.flux();
+//         }
 
-        if (simple.finalNonOrthogonalIter())
-        {
-            phi = phiHbyA - pEqn.flux();
-        }
+//         i++;
+//     }
 
-        i++;
-    }
-
-    //p.storePrevIter(); // Perché ho dovuto metterlo se nel solver non c'è???
-    p.relax();
-    U = HbyA - rAtU() * fvc::grad(p);
-    U.correctBoundaryConditions();
-    fvOptions.correct(U);
-    fvScalarMatrix pEqn
-    (
-        fvm::laplacian(rAtU(), p) == fvc::div(phiHbyA)
-    );
-    return pEqn;
-}
+//     //p.storePrevIter(); // Perché ho dovuto metterlo se nel solver non c'è???
+//     p.relax();
+//     U = HbyA - rAtU() * fvc::grad(p);
+//     U.correctBoundaryConditions();
+//     fvOptions.correct(U);
+//     fvScalarMatrix pEqn
+//     (
+//         fvm::laplacian(rAtU(), p) == fvc::div(phiHbyA)
+//     );
+//     return pEqn;
+// }
 
 void SteadyNSSimple::truthSolve2(List<scalar> mu_now, word Folder)
 {
     Time& runTime = _runTime();
     volScalarField& p = _p();
     volVectorField& U = _U();
+    fvMesh& mesh = _mesh();
+    surfaceScalarField& phi = _phi();
     fv::options& fvOptions = _fvOptions();
     simpleControl& simple = _simple();
     singlePhaseTransportModel& laminarTransport = _laminarTransport();
-#include "NLsolve.H"
+    scalar residual = 1;
+    scalar uresidual = 1;
+    Vector<double> uresidual_v(0, 0, 0);
+    scalar presidual = 1;
+    scalar csolve = 0;
+    // Variable that can be changed
+    turbulence->read();
+    std::ofstream res_os;
+    res_os.open("./ITHACAoutput/Offline/residuals", std::ios_base::app);
+#if OFVER == 6
+
+    while (simple.loop(runTime) && residual > tolerance && csolve < maxIter )
+#else
+    while (simple.loop() && residual > tolerance && csolve < maxIter )
+#endif
+    {
+        Info << "Time = " << runTime.timeName() << nl << endl;
+        // --- Pressure-velocity SIMPLE corrector
+        // Momentum predictor
+        fvVectorMatrix UEqn
+        (
+            fvm::div(phi, U)
+            + turbulence->divDevReff(U)
+            ==
+            -fvc::grad(p)
+        );
+        UEqn.relax();
+        uresidual_v = UEqn.solve().initialResidual();
+        phi = fvc::flux(1 / UEqn.A() * UEqn.H());
+        int i = 0;
+
+        // Non-orthogonal pressure corrector loop
+        while (simple.correctNonOrthogonal())
+        {
+            fvScalarMatrix pEqn
+            (
+                fvm::laplacian(1 / UEqn.A(), p) == fvc::div(phi)
+            );
+            pEqn.setReference(pRefCell, pRefValue);
+
+            if (i == 0)
+            {
+                presidual = pEqn.solve().initialResidual();
+            }
+
+            else
+            {
+                pEqn.solve();
+            }
+
+            if (simple.finalNonOrthogonalIter())
+            {
+                phi -= pEqn.flux();
+            }
+
+            i++;
+        }
+
+        //#include "continuityErrs.H"
+        // Explicitly relax pressure for momentum corrector
+        p.relax();
+        scalar C = 0;
+
+        for (label i = 0; i < 3; i++)
+        {
+            if (C < uresidual_v[i])
+            {
+                C = uresidual_v[i];
+            }
+        }
+
+        uresidual = C;
+        residual = max(presidual, uresidual);
+        Info << "\nResidual: " << residual << endl << endl;
+        // Momentum corrector
+        //U.correctBoundaryConditions();
+        Info << "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
+             << "  ClockTime = " << runTime.elapsedClockTime() << " s"
+             << nl << endl;
+    }
+
     ITHACAstream::exportSolution(U, name(counter), Folder);
     ITHACAstream::exportSolution(p, name(counter), Folder);
     Ufield.append(U);

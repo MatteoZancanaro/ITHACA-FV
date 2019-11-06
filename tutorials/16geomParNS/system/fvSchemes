@@ -28,7 +28,7 @@ gradSchemes
 divSchemes
 {
     default                             none;
-    div(phi,U)                          Gauss linearUpwind grad(U);
+    div(phi,U)                           bounded Gauss linearUpwind grad(U);
     //div(convection(phi,U))              Gauss linear;
 //    div(phi,Uaux)                       Gauss linearUpwind grad(U);
 //    div(phi,nuTilda)                    Gauss linear;
@@ -38,7 +38,7 @@ divSchemes
 
 laplacianSchemes
 {
-    default         Gauss linear orthogonal;
+    default         Gauss linear corrected;
 }
 
 interpolationSchemes

@@ -483,7 +483,7 @@ int main(int argc, char* argv[])
                                  name(i + 1) + "/polyMesh/");
         
         //Online part
-        example.restart();
+        reduced.problem->restart();
         example.updateMesh(onlineAlpha(i, 0));
         reduced.solveOnline_Simple(1, example.NmodesU, example.NmodesP,
                                  example.NmodesSUP, "./ITHACAoutput/checkOff/");
