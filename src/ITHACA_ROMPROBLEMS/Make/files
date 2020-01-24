@@ -10,6 +10,7 @@ ReducedSteadyNSTurbIntrusive/ReducedSteadyNSTurbIntrusive.C
 ReducedUnsteadyNSTurbIntrusive/ReducedUnsteadyNSTurbIntrusive.C
 ReducedLaplacian/ReducedLaplacian.C
 ReducedSimpleSteadyNS/ReducedSimpleSteadyNS.C
+ReducedCompressibleSteadyNS/ReducedCompressibleSteadyNS.C
 ReducedMSR/ReducedMSR.C
 ReducedUnsteadyMSR/ReducedUnsteadyMSR.C
 

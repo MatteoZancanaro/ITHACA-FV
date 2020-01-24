@@ -32,6 +32,7 @@ EXE_INC = \
     -I$(LIB_ITHACA_SRC)/ITHACA_FOMPROBLEMS/steadyNS_simple \
     -I$(LIB_ITHACA_SRC)/ITHACA_FOMPROBLEMS/unsteadyNSTturb \
     -I$(LIB_ITHACA_SRC)/ITHACA_FOMPROBLEMS/SteadyNSSimple \
+    -I$(LIB_ITHACA_SRC)/ITHACA_FOMPROBLEMS/CompressibleSteadyNS \
     -I$(LIB_ITHACA_SRC)/ITHACA_FOMPROBLEMS/msrProblem \
     -I$(LIB_ITHACA_SRC)/ITHACA_FOMPROBLEMS/unsteadymsrProblem \
     -I$(LIB_ITHACA_SRC)/ITHACA_ROMPROBLEMS/ReducedProblem \
@@ -48,6 +49,7 @@ EXE_INC = \
     -I$(LIB_ITHACA_SRC)/ITHACA_ROMPROBLEMS/reducedInverseLaplacian \
     -I$(LIB_ITHACA_SRC)/ITHACA_ROMPROBLEMS/NonLinearSolvers \
     -I$(LIB_ITHACA_SRC)/ITHACA_ROMPROBLEMS/ReducedSimpleSteadyNS \
+    -I$(LIB_ITHACA_SRC)/ITHACA_ROMPROBLEMS/ReducedCompressibleSteadyNS \
     -I$(LIB_ITHACA_SRC)/ITHACA_DEIM/DEIM \
     -I$(LIB_ITHACA_SRC)/ITHACA_THIRD_PARTY/splinter/include \
     -I$(LIB_ITHACA_SRC)/thirdparty/Eigen \
