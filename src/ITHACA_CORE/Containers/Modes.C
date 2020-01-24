@@ -201,6 +201,9 @@ Eigen::MatrixXd Modes<Type, PatchField, GeoMesh>::project(
         toEigen();
     }
 
+    M_Assert(fieldEig.rows() == EigenModes[0].rows(),
+             "Dimension of the field is not equal to the dimension of the modes. Assert the right modes are used.");
+
     if (numberOfModes == 0)
     {
         if (projType == "G")
