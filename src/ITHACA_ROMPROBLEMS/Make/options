@@ -6,6 +6,7 @@ EXE_INC = \
     -I$(LIB_SRC)/transportModels/incompressible/singlePhaseTransportModel \
     -I$(LIB_SRC)/transportModels/incompressible/viscosityModels/viscosityModel \
     -I$(LIB_SRC)/finiteVolume/lnInclude \
+    -I$(LIB_SRC)/finiteVolume/cfdTools \
     -I$(LIB_SRC)/meshTools/lnInclude \
     -I$(LIB_SRC)/dynamicMesh/lnInclude \
     -I$(LIB_SRC)/sampling/lnInclude \
@@ -32,6 +33,7 @@ EXE_INC = \
     -I$(LIB_ITHACA_SRC)/ITHACA_FOMPROBLEMS/steadyNS_simple \
     -I$(LIB_ITHACA_SRC)/ITHACA_FOMPROBLEMS/unsteadyNSTturb \
     -I$(LIB_ITHACA_SRC)/ITHACA_FOMPROBLEMS/SteadyNSSimple \
+    -I$(LIB_ITHACA_SRC)/ITHACA_FOMPROBLEMS/CompressibleSteadyNS \
     -I$(LIB_ITHACA_SRC)/ITHACA_FOMPROBLEMS/msrProblem \
     -I$(LIB_ITHACA_SRC)/ITHACA_FOMPROBLEMS/unsteadymsrProblem \
     -I$(LIB_ITHACA_SRC)/ITHACA_FOMPROBLEMS/UnsteadyNSExplicit \
@@ -50,6 +52,7 @@ EXE_INC = \
     -I$(LIB_ITHACA_SRC)/ITHACA_ROMPROBLEMS/NonLinearSolvers \
     -I$(LIB_ITHACA_SRC)/ITHACA_ROMPROBLEMS/ReducedSimpleSteadyNS \
     -I$(LIB_ITHACA_SRC)/ITHACA_ROMPROBLEMS/ReducedUnsteadyNSExplicit \
+    -I$(LIB_ITHACA_SRC)/ITHACA_ROMPROBLEMS/ReducedCompressibleSteadyNS \
     -I$(LIB_ITHACA_SRC)/ITHACA_DEIM/DEIM \
     -I$(LIB_ITHACA_SRC)/ITHACA_THIRD_PARTY/splinter/include \
     -I$(LIB_ITHACA_SRC)/thirdparty/Eigen \

@@ -201,6 +201,9 @@ Eigen::MatrixXd Modes<Type, PatchField, GeoMesh>::project(
         toEigen();
     }
 
+    M_Assert(fieldEig.rows() == EigenModes[0].rows(),
+             "Dimension of the field is not equal to the dimension of the modes. Assert the right modes are used.");
+
     if (numberOfModes == 0)
     {
         if (projType == "G")
@@ -262,7 +265,9 @@ Modes<Type, PatchField, GeoMesh>::reconstruct(
     }
 
     inputField = Foam2Eigen::Eigen2field(inputField, InField);
-    inputField.rename(Name);
+    //inputField.rename(Name);
+    word& oldName = const_cast<word&>(inputField.name());
+    oldName = Name;
 
     for (label i = 0; i < NBC; i++)
     {

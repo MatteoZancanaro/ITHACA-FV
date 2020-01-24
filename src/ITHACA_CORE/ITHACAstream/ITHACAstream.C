@@ -629,6 +629,7 @@ void readMiddleFields(
 
     while (ITHACAutilities::check_folder(casename + name(par)))
     {
+        std::cout << "Reading folder number " + name(par) << std::endl; 
         read_fields(Lfield, field, casename + name(par) + "/");
         par++;
     }
