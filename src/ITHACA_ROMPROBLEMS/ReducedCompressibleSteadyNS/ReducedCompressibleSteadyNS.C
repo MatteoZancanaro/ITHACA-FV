@@ -79,74 +79,130 @@ void ReducedCompressibleSteadyNS::setOnlineVelocity(Eigen::MatrixXd vel)
 
 // * * * * * * * * * * * * * * * Solve Functions  * * * * * * * * * * * * * //
 
-// void reducedSimpleSteadyNS::solveOnline_Simple(scalar mu_now)
-// {
-//     counter++;
-//     Eigen::VectorXd uresidualOld;
-//     Eigen::VectorXd presidualOld;
-//     uresidualOld.resize(ULmodes.size());
-//     presidualOld.resize(problem->Pmodes.size());
-//     Eigen::VectorXd uresidual;
-//     Eigen::VectorXd presidual;
-//     scalar residual_jump(1);
-//     scalar U_norm_res(1);
-//     scalar P_norm_res(1);
-//     Eigen::MatrixXd a = Eigen::VectorXd::Zero(ULmodes.size());
-//     Eigen::MatrixXd b = Eigen::VectorXd::Zero(problem->Pmodes.size());
-//     ITHACAparameters para;
-//     float residualJumpLim =
-//         para.ITHACAdict->lookupOrDefault<float>("residualJumpLim", 1e-5);
-//     float normalizedResidualLim =
-//         para.ITHACAdict->lookupOrDefault<float>("normalizedResidualLim", 1e-5);
-//     volVectorField Uaux("Uaux", problem->_U());
-//     volScalarField Paux("Paux", problem->_p());
+void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
+        int NmodesUproj, int NmodesPproj, int NmodesEproj)
+{
+    // Reisuals initialization
+    scalar residualNorm(1);
+    scalar residualJump(1);
+    Eigen::MatrixXd uResidual(1, NmodesUproj);
+    Eigen::MatrixXd eResidual(1, NmodesEproj);
+    Eigen::MatrixXd pResidual(1, NmodesPproj);
+    Eigen::MatrixXd uResidualOld(1, NmodesUproj);
+    Eigen::MatrixXd eResidualOld(1, NmodesEproj);
+    Eigen::MatrixXd pResidualOld(1, NmodesPproj);
+    scalar uNormRes(1);
+    scalar eNormRes(1);
+    scalar pNormRes(1);
 
-//     while (residual_jump > residualJumpLim
-//             || std::max(U_norm_res, P_norm_res) > normalizedResidualLim)
-//     {
-//         Uaux = ULmodes.reconstruct(a, "Uaux");
-//         Paux = problem->Pmodes.reconstruct(b, "Paux");
-//         simpleControl& simple = problem->_simple();
-//         setRefCell(Paux, simple.dict(), problem->pRefCell, problem->pRefValue);
-//         problem->_phi() = linearInterpolate(Uaux) & problem->_U().mesh().Sf();
-//         fvVectorMatrix Au(get_Umatrix_Online(Uaux, Paux));
-//         List<Eigen::MatrixXd> RedLinSysU = ULmodes.project(Au);
-//         a = reducedProblem::solveLinearSys(RedLinSysU, a, uresidual, vel_now);
-//         Info << "res for a" << endl;
-//         Info << uresidual.norm() << endl;
-//         Uaux = ULmodes.reconstruct(a, "Uaux");
-//         problem->_phi() = linearInterpolate(Uaux) & problem->_U().mesh().Sf();
-//         fvScalarMatrix Ap(get_Pmatrix_Online(Uaux, Paux));
-//         List<Eigen::MatrixXd> RedLinSysP = problem->Pmodes.project(Ap);
-//         b = reducedProblem::solveLinearSys(RedLinSysP, b, presidual);
-//         Info << "res for b" << endl;
-//         Info << presidual.norm() << endl;
-//         uresidualOld = uresidualOld - uresidual;
-//         presidualOld = presidualOld - presidual;
-//         uresidualOld = uresidualOld.cwiseAbs();
-//         presidualOld = presidualOld.cwiseAbs();
-//         residual_jump = std::max(uresidualOld.sum(), presidualOld.sum());
-//         uresidualOld = uresidual;
-//         presidualOld = presidual;
-//         uresidual = uresidual.cwiseAbs();
-//         presidual = presidual.cwiseAbs();
-//         U_norm_res = uresidual.sum() / (RedLinSysU[1].cwiseAbs()).sum();
-//         P_norm_res = presidual.sum() / (RedLinSysP[1].cwiseAbs()).sum();
-//         // std::cout << "Residual jump = " << residual_jump << std::endl;
-//         // std::cout << "Normalized residual = " << std::max(U_norm_res,P_norm_res) << std::endl;
-//     }
+    // Parameters definition
+    ITHACAparameters para;
+    float residualJumpLim =
+        para.ITHACAdict->lookupOrDefault<float>("residualJumpLim", 1e-5);
+    float normalizedResidualLim =
+        para.ITHACAdict->lookupOrDefault<float>("normalizedResidualLim", 1e-5);
+    int maxIter =
+        para.ITHACAdict->lookupOrDefault<float>("maxIter", 2000);
+    bool closedVolume = false;
+    label csolve = 0;
 
-//     Uaux = ULmodes.reconstruct(a, "Uaux");
-//     Paux = problem->Pmodes.reconstruct(b, "Paux");
-//     ITHACAstream::exportSolution(Uaux, name(counter),
-//                                  "./ITHACAoutput/Reconstruct/");
-//     ITHACAstream::exportSolution(Paux, name(counter),
-//                                  "./ITHACAoutput/Reconstruct/");
-// }
+    Vector<double> uresidual_v(0, 0, 0); // Only for temp compilying -> to be removed as soon as reduced systems are used.
+    scalar uresidual = 1; // Only for temp compilying -> to be removed as soon as reduced systems are used.
+    scalar eresidual = 1; // Only for temp compilying -> to be removed as soon as reduced systems are used.
+    scalar presidual = 1; // Only for temp compilying -> to be removed as soon as reduced systems are used.
+    scalar residual = 1; // Only for temp compilying -> to be removed as soon as reduced systems are used.
 
-// void reducedSimpleSteadyNS::setOnlineVelocity(Eigen::MatrixXd vel)
-// {
-//     assert(problem->inletIndex.rows() == vel.size()
-//            && "Imposed boundary conditions dimensions do not match given values matrix dimensions");
-//     vel_now = vel;
-// }
+    // Full variables initialization
+    volVectorField& U = problem->_U();
+    volScalarField& P = problem->_p();
+    volScalarField& E = problem->_E();
+    volScalarField& rho = problem->_rho();
+    volScalarField& psi = problem->_psi();
+    surfaceScalarField& phi = problem->_phi();
+
+    // Reduced variables initialization
+    Eigen::MatrixXd u(1, NmodesUproj);
+    Eigen::MatrixXd e(1, NmodesEproj);
+    Eigen::MatrixXd p(1, NmodesPproj);
+
+    fv::options& fvOptions = problem->_fvOptions();
+    fluidThermo& thermo = problem->pThermo();
+
+    while ((residualJump > residualJumpLim
+            || residual > normalizedResidualLim) && csolve < maxIter)
+    {
+        csolve++;
+
+        uResidualOld = uResidual;
+        eResidualOld = eResidual;
+        pResidualOld = pResidual;
+
+        U = ULmodes.reconstruct(u, "Ur");
+        E = problem->Emodes.reconstruct(e, "Er");
+        P = problem->Pmodes.reconstruct(p, "Pr");
+
+
+        problem->getUmatrix(U);
+
+//if (simple.momentumPredictor())
+//{
+        uresidual_v = solve(problem->Ueqn_global() == - problem->getGradP(P)).initialResidual(); //Working
+        U = ULmodes.reconstruct(u, "Ur");
+
+        fvOptions.correct(U);
+//}
+
+//Energy equation phase
+        problem->getEmatrix(U, P);
+        eresidual = problem->Eeqn_global().solve().initialResidual();
+        E = problem->Emodes.reconstruct(e, "Er");
+        fvOptions.correct(thermo.he());
+        thermo.correct(); // Here are calculated both temperature and density based on P,U and he.
+
+// Pressure equation phase
+        constrainPressure(P, rho, U, problem->getPhiHbyA(problem->Ueqn_global(), U, P), problem->getRhorAUf(problem->Ueqn_global()));// Update the pressure BCs to ensure flux consistency
+
+        closedVolume = adjustPhi(problem->phiHbyA(), U, P);
+        while (problem->_simple().correctNonOrthogonal())
+        {
+            problem->getPmatrix(P);
+
+            presidual = problem->Peqn_global().solve().initialResidual();
+            P = problem->Pmodes.reconstruct(p, "Pr");
+
+            if (problem->_simple().finalNonOrthogonalIter())
+            {
+                phi = problem->phiHbyA() + problem->Peqn_global().flux();
+            }
+        }
+
+//#include "incompressible/continuityErrs.H"
+        P.relax();// Explicitly relax pressure for momentum corrector
+        U = problem->HbyA() - (1.0 / problem->Ueqn_global().A()) * problem->getGradP(P);//rAU * fvc::grad(p);
+        U.correctBoundaryConditions();
+        fvOptions.correct(U);
+        bool pLimited = problem->_pressureControl().limit(P);
+
+// For closed-volume cases adjust the pressure and density levels to obey overall mass continuity
+        if (closedVolume)
+        {
+            P += (problem->_initialMass() - fvc::domainIntegrate(psi * P))
+                 / fvc::domainIntegrate(psi);
+        }
+
+        if (pLimited || closedVolume)
+        {
+            P.correctBoundaryConditions();
+        }
+
+        rho = thermo.rho(); // Here rho is calculated as p*psi = p/(R*T)
+        rho.relax();
+
+        uresidual = max(max(uresidual_v[0], uresidual_v[1]), uresidual_v[2]);
+        residual = max(max(presidual, uresidual), eresidual);
+        Info << "\nResidual: " << residual << endl;
+        problem->turbulence->correct();
+
+        residualJump = max(max(((uResidualOld-uResidual).cwiseAbs()).sum(),((pResidualOld-pResidual).cwiseAbs()).sum()),((eResidualOld-eResidual).cwiseAbs()).sum());
+    }
+}

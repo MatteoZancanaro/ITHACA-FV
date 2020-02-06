@@ -81,11 +81,13 @@ class ReducedCompressibleSteadyNS: public ReducedSteadyNSTurb
 
         /// Method to perform an online solve using a PPE stabilisation method
         ///
-        /// @param[in]  vel_now  The vector of online velocity. It is defined in
-        /// with an Eigen::MatrixXd and must have one col and as many rows as the number
-        /// of parametrized boundary conditions.
+        /// @param[in]  mu_now  The online viscosity.
+        /// @param[in]  NmodesUproj  The number of modes one wants to use for velocity projection.
+        /// @param[in]  NmodesPproj  The number of modes one wants to use for pressure projection.
+        /// @param[in]  NmodesEproj  The number of modes one wants to use for energy projection.
         ///
-        void solveOnline_Simple(scalar mu_now);
+        void solveOnlineCompressible(scalar mu_now,
+        int NmodesUproj, int NmodesPproj, int NmodesEproj);
 
         ///
         /// @brief      It checks if the number of imposed boundary conditions is correct

@@ -99,7 +99,7 @@ while (simple.loop() && residual > tolerance && csolve < maxIter )
 
 #include "incompressible/continuityErrs.H"
     p.relax();// Explicitly relax pressure for momentum corrector
-    U = HbyA() - (1.0 / Ueqn_global().A()) * fvc::grad(p);//rAU * fvc::grad(p);
+    U = HbyA() - (1.0 / Ueqn_global().A()) * getGradP(p);//rAU * fvc::grad(p);
     U.correctBoundaryConditions();
     fvOptions.correct(U);
     bool pLimited = pressureControl.limit(p);
