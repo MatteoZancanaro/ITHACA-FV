@@ -92,14 +92,16 @@ class CompressibleSteadyNS: public SteadyNSTurb
         volVectorField getGradP(volScalarField& p);
 
         // Energy equation terms
-        fvScalarMatrix getEmatrix(volVectorField& U, volScalarField& p);//, scalar& eresidual);
+        fvScalarMatrix getEmatrix(volVectorField& U,
+                                  volScalarField& p);//, scalar& eresidual);
         fvScalarMatrix getFluxTerm();
         volScalarField getKinEnTerm(volVectorField& U, volScalarField& p);
         fvScalarMatrix getDiffTerm();
 
         // Pressure equation terms
         fvScalarMatrix getPmatrix(volScalarField& p);
-        surfaceScalarField getPhiHbyA(fvVectorMatrix& Ueqn, volVectorField& U, volScalarField& p);
+        surfaceScalarField getPhiHbyA(fvVectorMatrix& Ueqn, volVectorField& U,
+                                      volScalarField& p);
         volScalarField getDivPhiHbyA();
         surfaceScalarField getRhorAUf(fvVectorMatrix& Ueqn);
         fvScalarMatrix getPoissonTerm(volScalarField& p);

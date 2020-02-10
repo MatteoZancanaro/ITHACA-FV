@@ -159,7 +159,7 @@ int main(int argc, char* argv[])
         //std::cout << vel.size() << std::endl;
         //std::cout << example.inletIndex << std::endl;
         reduced.setOnlineVelocity(vel);
-        //reduced.solveOnline_Simple(mu_now, NmodesUproj, NmodesPproj);
+        reduced.solveOnlineCompressible(mu_now, NmodesUproj, NmodesPproj, NmodesEproj);
     }
     exit(0);
 }

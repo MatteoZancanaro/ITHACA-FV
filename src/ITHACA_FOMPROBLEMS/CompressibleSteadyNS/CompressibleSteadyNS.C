@@ -41,47 +41,47 @@
 CompressibleSteadyNS::CompressibleSteadyNS() {}
 CompressibleSteadyNS::CompressibleSteadyNS(int argc, char* argv[])
 {
-  //#include "postProcess.H"
-  _args = autoPtr<argList>
-          (
-            new argList(argc, argv)
-          );
+    //#include "postProcess.H"
+    _args = autoPtr<argList>
+            (
+                new argList(argc, argv)
+            );
 
-  if (!_args->checkRootCase())
-  {
-    Foam::FatalError.exit();
-  }
+    if (!_args->checkRootCase())
+    {
+        Foam::FatalError.exit();
+    }
 
-  argList& args = _args();
+    argList& args = _args();
 #include "createTime.H"
 #include "createMesh.H"
-  _simple = autoPtr<simpleControl>
-            (
-              new simpleControl
+    _simple = autoPtr<simpleControl>
               (
-                mesh
-              )
-            );
-  simpleControl& simple = _simple();
+                  new simpleControl
+                  (
+                      mesh
+                  )
+              );
+    simpleControl& simple = _simple();
 #include "createFields.H"
-  //#include "createFvOptions.H"
+    //#include "createFvOptions.H"
 #include "initContinuityErrs.H"
-  supex = ITHACAutilities::check_sup();
-  turbulence->validate();
-  ITHACAdict = new IOdictionary
-  (
-    IOobject
+    supex = ITHACAutilities::check_sup();
+    turbulence->validate();
+    ITHACAdict = new IOdictionary
     (
-      "ITHACAdict",
-      runTime.system(),
-      mesh,
-      IOobject::MUST_READ,
-      IOobject::NO_WRITE
-    )
-  );
-  para = new ITHACAparameters;
-  offline = ITHACAutilities::check_off();
-  podex = ITHACAutilities::check_pod();
+        IOobject
+        (
+            "ITHACAdict",
+            runTime.system(),
+            mesh,
+            IOobject::MUST_READ,
+            IOobject::NO_WRITE
+        )
+    );
+    para = new ITHACAparameters;
+    offline = ITHACAutilities::check_off();
+    podex = ITHACAutilities::check_pod();
 }
 
 
@@ -91,179 +91,176 @@ CompressibleSteadyNS::CompressibleSteadyNS(int argc, char* argv[])
 
 void CompressibleSteadyNS::truthSolve()
 {
-  Time& runTime = _runTime();
-  //volScalarField& E = pThermo().he();
-  volScalarField& E = _E();
-  volVectorField& U = _U();
-  simpleControl& simple = _simple();
-  volScalarField& p = pThermo().p();
-  volScalarField _nut(turbulence->nut());
-  //Info << thermo.mu() << endl;
-  //Info << thermo.nu() << endl;
+    Time& runTime = _runTime();
+    //volScalarField& E = pThermo().he();
+    volScalarField& E = _E();
+    volVectorField& U = _U();
+    simpleControl& simple = _simple();
+    volScalarField& p = pThermo().p();
+    volScalarField _nut(turbulence->nut());
+    //Info << thermo.mu() << endl;
+    //Info << thermo.nu() << endl;
 #include "NLsolve.H"
-  ITHACAstream::exportSolution(U, name(counter), "./ITHACAoutput/Offline/");
-  ITHACAstream::exportSolution(p, name(counter), "./ITHACAoutput/Offline/");
-  ITHACAstream::exportSolution(E, name(counter), "./ITHACAoutput/Offline/");
-  ITHACAstream::exportSolution(_nut, name(counter), "./ITHACAoutput/Offline/");
-  Ufield.append(U);
-  Pfield.append(p);
-  Efield.append(E);
-  nutFields.append(_nut);
-  counter++;
+    ITHACAstream::exportSolution(U, name(counter), "./ITHACAoutput/Offline/");
+    ITHACAstream::exportSolution(p, name(counter), "./ITHACAoutput/Offline/");
+    ITHACAstream::exportSolution(E, name(counter), "./ITHACAoutput/Offline/");
+    ITHACAstream::exportSolution(_nut, name(counter), "./ITHACAoutput/Offline/");
+    Ufield.append(U);
+    Pfield.append(p);
+    Efield.append(E);
+    nutFields.append(_nut);
+    counter++;
 }
 
 void CompressibleSteadyNS::changeViscosity(double mu_new)
 {
-  const volScalarField& mu =  pThermo().mu();
-  volScalarField& mu_field = const_cast<volScalarField&>(mu);
-  this->assignIF(mu_field, mu_new);
+    const volScalarField& mu =  pThermo().mu();
+    volScalarField& mu_field = const_cast<volScalarField&>(mu);
+    this->assignIF(mu_field, mu_new);
 
-  for (int i = 0; i < mu_field.boundaryFieldRef().size(); i++)
-  {
-    this->assignBC(mu_field, i, mu_new);
-  }
+    for (int i = 0; i < mu_field.boundaryFieldRef().size(); i++)
+    {
+        this->assignBC(mu_field, i, mu_new);
+    }
 }
 
 fvVectorMatrix CompressibleSteadyNS::getNLTerm(volVectorField& U)
 {
-  surfaceScalarField& phi = _phi();
-  fvVectorMatrix NLTerm = fvm::div(phi, U);
-  return NLTerm;
+    surfaceScalarField& phi = _phi();
+    fvVectorMatrix NLTerm = fvm::div(phi, U);
+    return NLTerm;
 }
 
 fvVectorMatrix CompressibleSteadyNS::getViscTerm(volVectorField& U)
 {
-  volScalarField& rho = _rho();
-  volScalarField nuEff = turbulence->nuEff();
-  //fvVectorMatrix viscTerm = turbulence->divDevRhoReff(U);
-  fvVectorMatrix viscTerm = - fvc::div((rho * nuEff) * dev2(T(fvc::grad(U)))) - fvm::laplacian(rho * nuEff, U);
-  return viscTerm;
+    volScalarField& rho = _rho();
+    volScalarField nuEff = turbulence->nuEff();
+    //fvVectorMatrix viscTerm = turbulence->divDevRhoReff(U);
+    fvVectorMatrix viscTerm = - fvc::div((rho * nuEff) * dev2(T(fvc::grad(
+            U)))) - fvm::laplacian(rho * nuEff, U);
+    return viscTerm;
 }
 
 volVectorField CompressibleSteadyNS::getGradP(volScalarField& p)
 {
-  volVectorField gradP = fvc::grad(p);
-  return gradP;
+    volVectorField gradP = fvc::grad(p);
+    return gradP;
 }
 
 
-fvVectorMatrix CompressibleSteadyNS::getUmatrix(volVectorField& U)//, Vector<double>& uresidual_v)
+fvVectorMatrix CompressibleSteadyNS::getUmatrix(volVectorField&
+        U)//, Vector<double>& uresidual_v)
 {
-
-  volScalarField& rho = _rho();
-  fv::options& fvOptions = _fvOptions();
-
-  Ueqn_global.reset(new fvVectorMatrix(getNLTerm(U)
-                                       + getViscTerm(U)
-                                       ==
-                                       fvOptions(rho, U)
-                                      ));
-  Ueqn_global().relax();
-  fvOptions.constrain(Ueqn_global());
-
-  //Ueqn_global.reset(new fvVectorMatrix(Ueqn_global()
-  //                                  ==
-  //                                  -getGradP(p)
-  //                                 ));
-
-  return Ueqn_global();
+    volScalarField& rho = _rho();
+    fv::options& fvOptions = _fvOptions();
+    Ueqn_global.reset(new fvVectorMatrix(getNLTerm(U)
+                                         + getViscTerm(U)
+                                         ==
+                                         fvOptions(rho, U)
+                                        ));
+    Ueqn_global().relax();
+    fvOptions.constrain(Ueqn_global());
+    //Ueqn_global.reset(new fvVectorMatrix(Ueqn_global()
+    //                                  ==
+    //                                  -getGradP(p)
+    //                                 ));
+    return Ueqn_global();
 }
 
 fvScalarMatrix CompressibleSteadyNS::getFluxTerm()
 {
-  volScalarField& he = pThermo().he();
-  surfaceScalarField& phi = _phi();
-
-  fvScalarMatrix fluxTerm = fvm::div(phi, he);
-  return fluxTerm;
+    volScalarField& he = pThermo().he();
+    surfaceScalarField& phi = _phi();
+    fvScalarMatrix fluxTerm = fvm::div(phi, he);
+    return fluxTerm;
 }
 
-volScalarField CompressibleSteadyNS::getKinEnTerm(volVectorField& U, volScalarField& p)
+volScalarField CompressibleSteadyNS::getKinEnTerm(volVectorField& U,
+        volScalarField& p)
 {
-  surfaceScalarField& phi = _phi();
-  volScalarField& rho = _rho();
-  volScalarField kinEn = fvc::div(phi, volScalarField("Ekp", 0.5 * magSqr(U) + p / rho));
-  return kinEn;
+    surfaceScalarField& phi = _phi();
+    volScalarField& rho = _rho();
+    volScalarField kinEn = fvc::div(phi, volScalarField("Ekp",
+                                    0.5 * magSqr(U) + p / rho));
+    return kinEn;
 }
 
 fvScalarMatrix CompressibleSteadyNS::getDiffTerm()
 {
-  volScalarField& he = pThermo().he();
-
-  fvScalarMatrix diffTerm = fvm::laplacian(turbulence->alphaEff(), he);
-  return diffTerm;
+    volScalarField& he = pThermo().he();
+    fvScalarMatrix diffTerm = fvm::laplacian(turbulence->alphaEff(), he);
+    return diffTerm;
 }
 
 fvScalarMatrix CompressibleSteadyNS::getEmatrix(volVectorField& U,
-    volScalarField& p)//, scalar& eresidual)
+        volScalarField& p)//, scalar& eresidual)
 {
-  fluidThermo& thermo = pThermo();
-  volScalarField& he = thermo.he();
-  volScalarField& rho = _rho();
-  fv::options& fvOptions = _fvOptions();
-  Eeqn_global.reset(new fvScalarMatrix(
-                      getFluxTerm() + getKinEnTerm(U, p) - getDiffTerm()
-                      ==
-                      fvOptions(rho, he)
-                    ));
-  Eeqn_global().relax();
-  fvOptions.constrain(Eeqn_global());
-  return Eeqn_global();
+    fluidThermo& thermo = pThermo();
+    volScalarField& he = thermo.he();
+    volScalarField& rho = _rho();
+    fv::options& fvOptions = _fvOptions();
+    Eeqn_global.reset(new fvScalarMatrix(
+                          getFluxTerm() + getKinEnTerm(U, p) - getDiffTerm()
+                          ==
+                          fvOptions(rho, he)
+                      ));
+    Eeqn_global().relax();
+    fvOptions.constrain(Eeqn_global());
+    return Eeqn_global();
 }
 
-surfaceScalarField CompressibleSteadyNS::getPhiHbyA(fvVectorMatrix& Ueqn, volVectorField& U, volScalarField& p)
+surfaceScalarField CompressibleSteadyNS::getPhiHbyA(fvVectorMatrix& Ueqn,
+        volVectorField& U, volScalarField& p)
 {
-  volScalarField& rho = _rho();
-  volScalarField rAU(1.0 /
-                     Ueqn.A()); // Inverse of the diagonal part of the U equation matrix
-  HbyA.reset(new volVectorField(constrainHbyA(rAU * Ueqn.H(), U,
-                                p))); // H is the extra diagonal part summed to the r.h.s. of the U equation
-  phiHbyA.reset(new surfaceScalarField("phiHbyA", fvc::interpolate(rho)*fvc::flux(HbyA)));
-  return phiHbyA;
+    volScalarField& rho = _rho();
+    volScalarField rAU(1.0 /
+                       Ueqn.A()); // Inverse of the diagonal part of the U equation matrix
+    HbyA.reset(new volVectorField(constrainHbyA(rAU * Ueqn.H(), U,
+                                  p))); // H is the extra diagonal part summed to the r.h.s. of the U equation
+    phiHbyA.reset(new surfaceScalarField("phiHbyA",
+                                         fvc::interpolate(rho)*fvc::flux(HbyA)));
+    return phiHbyA;
 }
 
 volScalarField CompressibleSteadyNS::getDivPhiHbyA()
 {
-  volScalarField divPhiHbyA = fvc::div(phiHbyA());
-  return divPhiHbyA;
+    volScalarField divPhiHbyA = fvc::div(phiHbyA());
+    return divPhiHbyA;
 }
 
 surfaceScalarField CompressibleSteadyNS::getRhorAUf(fvVectorMatrix& Ueqn)
 {
-  volScalarField& rho = _rho();
-  volScalarField rAU(1.0 /
-                     Ueqn.A()); // Inverse of the diagonal part of the U equation matrix
-  rhorAUf.reset(new surfaceScalarField("rhorAUf", fvc::interpolate(rho * rAU)));
-  return rhorAUf;
+    volScalarField& rho = _rho();
+    volScalarField rAU(1.0 /
+                       Ueqn.A()); // Inverse of the diagonal part of the U equation matrix
+    rhorAUf.reset(new surfaceScalarField("rhorAUf", fvc::interpolate(rho * rAU)));
+    return rhorAUf;
 }
 
 fvScalarMatrix CompressibleSteadyNS::getPoissonTerm(volScalarField& p)
 {
-  fvScalarMatrix poissonTerm = fvm::laplacian(rhorAUf(), p);
-  return poissonTerm;
+    fvScalarMatrix poissonTerm = fvm::laplacian(rhorAUf(), p);
+    return poissonTerm;
 }
 
 fvScalarMatrix CompressibleSteadyNS::getPmatrix(volScalarField& p)
 {
-  volScalarField& rho = _rho();
-  fv::options& fvOptions = _fvOptions();
-  volScalarField& psi = _psi();
-  pressureControl& pressureControl = _pressureControl();
-
-  Peqn_global.reset(new fvScalarMatrix(
-                      getDivPhiHbyA()
-                      - getPoissonTerm(p)
-                      ==
-                      fvOptions(psi, p, rho.name())
-                    ));
-
-  Peqn_global().setReference
-  (
-    pressureControl.refCell(),
-    pressureControl.refValue()
-  );
-
-  return Peqn_global();
+    volScalarField& rho = _rho();
+    fv::options& fvOptions = _fvOptions();
+    volScalarField& psi = _psi();
+    pressureControl& pressureControl = _pressureControl();
+    Peqn_global.reset(new fvScalarMatrix(
+                          getDivPhiHbyA()
+                          - getPoissonTerm(p)
+                          ==
+                          fvOptions(psi, p, rho.name())
+                      ));
+    Peqn_global().setReference
+    (
+        pressureControl.refCell(),
+        pressureControl.refValue()
+    );
+    return Peqn_global();
 }
 
 // fvScalarMatrix CompressibleSteadyNS::getPmatrix(volVectorField& U,

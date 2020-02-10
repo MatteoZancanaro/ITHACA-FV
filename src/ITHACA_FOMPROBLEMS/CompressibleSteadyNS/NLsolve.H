@@ -55,23 +55,18 @@ while (simple.loop() && residual > tolerance && csolve < maxIter )
 #endif
 {
     Info << "Time = " << runTime.timeName() << nl << endl;
-    
     //Momentum equation phase
     getUmatrix(U);
 
     if (simple.momentumPredictor())
     {
         uresidual_v = solve(Ueqn_global() == - getGradP(p)).initialResidual(); //Working
-        
         // dimensionedVector Zer("Z", dimForce, vector(0,0,0));
         // dimensionedScalar Vol("V", dimVolume, 1.0);
         // dimensionedVector zero = Zer/Vol;
         // uresidual_v = solve(Ueqn_global() == zero).initialResidual(); //Not working
-        
         //uresidual_v = Ueqn_global().solve().initialResidual(); //Not working
-
         //uresidual_v = getUmatrix(U, p).solve().initialResidual(); //Not working
-        
         fvOptions.correct(U);
     }
 
@@ -80,15 +75,14 @@ while (simple.loop() && residual > tolerance && csolve < maxIter )
     eresidual = Eeqn_global().solve().initialResidual();
     fvOptions.correct(thermo.he());
     thermo.correct(); // Here are calculated both temperature and density based on P,U and he.
-
     // Pressure equation phase
-    constrainPressure(p, rho, U, getPhiHbyA(Ueqn_global(), U, p), getRhorAUf(Ueqn_global()));// Update the pressure BCs to ensure flux consistency
-
+    constrainPressure(p, rho, U, getPhiHbyA(Ueqn_global(), U, p),
+                      getRhorAUf(Ueqn_global()));// Update the pressure BCs to ensure flux consistency
     closedVolume = adjustPhi(phiHbyA(), U, p);
+
     while (simple.correctNonOrthogonal())
     {
         getPmatrix(p);
-
         presidual = Peqn_global().solve().initialResidual();
 
         if (simple.finalNonOrthogonalIter())
@@ -118,7 +112,6 @@ while (simple.loop() && residual > tolerance && csolve < maxIter )
 
     rho = thermo.rho(); // Here rho is calculated as p*psi = p/(R*T)
     rho.relax();
-
     auto uresidual = max(max(uresidual_v[0], uresidual_v[1]), uresidual_v[2]);
     residual = max(max(presidual, uresidual), eresidual);
     Info << "\nResidual: " << residual << endl << endl;
