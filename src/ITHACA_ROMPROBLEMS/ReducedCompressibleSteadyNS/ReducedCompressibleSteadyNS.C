@@ -107,16 +107,19 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
     // Full variables initialization
     volVectorField& U = problem->_U();
     volScalarField& P = problem->_p();
-    volScalarField& E = problem->_E();
+    volScalarField& E = problem->pThermo->he();
     volScalarField& rho = problem->_rho();
     volScalarField& psi = problem->_psi();
     surfaceScalarField& phi = problem->_phi();
+    Time& runTime = problem->_runTime();
+    fvMesh& mesh = problem->_mesh();
+    fv::options& fvOptions = problem->_fvOptions();
+    fluidThermo& thermo = problem->pThermo();
+    scalar cumulativeContErr = problem->cumulativeContErr;
     // Reduced variables initialization
     Eigen::MatrixXd u = Eigen::MatrixXd::Zero(NmodesUproj, 1);
     Eigen::MatrixXd e = Eigen::MatrixXd::Zero(NmodesEproj, 1);
     Eigen::MatrixXd p = Eigen::MatrixXd::Zero(NmodesPproj, 1);
-    fv::options& fvOptions = problem->_fvOptions();
-    fluidThermo& thermo = problem->pThermo();
 
     while ((residualJump > residualJumpLim
             || residualNorm > normalizedResidualLim) && csolve < maxIter)
@@ -127,28 +130,28 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
         uResidualOld = uResidual;
         eResidualOld = eResidual;
         pResidualOld = pResidual;
-        U = ULmodes.reconstruct(u, "Ur");
-        E = problem->Emodes.reconstruct(e, "Er");
-        P = problem->Pmodes.reconstruct(p, "Pr");
         //Momentum equation phase
-        problem->getUmatrix(U);
-        //problem->Ueqn_global() == -problem->getGradP(P); //Is this better??
-        //if (simple.momentumPredictor())
-        //{
-        List<Eigen::MatrixXd> RedLinSysU = ULmodes.project(problem->Ueqn_global(),
-                                           NmodesUproj);
-        RedLinSysU[1] = RedLinSysU[1] + ULmodes.project(- problem->getGradP(P),
-                        NmodesUproj); //If you want to use uEqn_global==-getGradP, comment this line.
-        u = reducedProblem::solveLinearSys(RedLinSysU, u, uResidual, vel_now);
-        U = ULmodes.reconstruct(u, "Ur");
-        fvOptions.correct(U);
-        //}
+        List<Eigen::MatrixXd> RedLinSysU;
+        if (problem->_simple().momentumPredictor())
+        {
+            problem->getUmatrix(U);
+            problem->Ueqn_global() == -problem->getGradP(P); //Is this better??
+            RedLinSysU = ULmodes.project(problem->Ueqn_global(),
+                                         NmodesUproj);
+            // volVectorField gradP = problem->getGradP(P); //If you want to use uEqn_global==-getGradP, comment this line.
+            // RedLinSysU[1] = RedLinSysU[1] - ULmodes.project(gradP, NmodesUproj); //If you want to use uEqn_global==-getGradP, comment this line.
+            u = reducedProblem::solveLinearSys(RedLinSysU, u, uResidual, vel_now, "bdcSvd");
+            //U = ULmodes.reconstruct(u, "Ur");
+            solve(problem->Ueqn_global());// == - problem->getGradP(P)); //For debug purposes only, second part only useful when using uEqn_global==-getGradP
+            fvOptions.correct(U);
+        }
         //Energy equation phase
         problem->getEmatrix(U, P);
         List<Eigen::MatrixXd> RedLinSysE = problem->Emodes.project(
                                                problem->Eeqn_global(), NmodesEproj);
         e = reducedProblem::solveLinearSys(RedLinSysE, e, eResidual);
-        E = problem->Emodes.reconstruct(e, "Er");
+        //E = problem->Emodes.reconstruct(e, "Er");
+        problem->Eeqn_global().solve(); //For debug purposes only
         fvOptions.correct(thermo.he());
         thermo.correct(); // Here are calculated both temperature and density based on P,U and he.
         // Pressure equation phase
@@ -163,7 +166,8 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
             problem->getPmatrix(P);
             RedLinSysP = problem->Pmodes.project(problem->Peqn_global(), NmodesPproj);
             p = reducedProblem::solveLinearSys(RedLinSysP, p, pResidual);
-            P = problem->Pmodes.reconstruct(p, "Pr");
+            //P = problem->Pmodes.reconstruct(p, "Pr");
+            problem->Peqn_global().solve(); //For debug purposes only
 
             if (problem->_simple().finalNonOrthogonalIter())
             {
@@ -171,7 +175,7 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
             }
         }
 
-        //#include "incompressible/continuityErrs.H"
+#include "incompressible/continuityErrs.H"
         P.relax();// Explicitly relax pressure for momentum corrector
         U = problem->HbyA() - (1.0 / problem->Ueqn_global().A()) * problem->getGradP(P);
         U.correctBoundaryConditions();
@@ -192,6 +196,12 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
 
         rho = thermo.rho(); // Here rho is calculated as p*psi = p/(R*T)
         rho.relax();
+        std::cout << "Ures = " << (uResidual.cwiseAbs()).sum() << std::endl;
+        std::cout << "Eres = " << (eResidual.cwiseAbs()).sum() << std::endl;
+        std::cout << "Pres = " << (pResidual.cwiseAbs()).sum() << std::endl;
+        std::cout << "U = " << u << std::endl;
+        std::cout << "E = " << e << std::endl;
+        std::cout << "P = " << p << std::endl;
         residualNorm = max(max((uResidual.cwiseAbs()).sum() /
                                (RedLinSysU[1].cwiseAbs()).sum(),
                                (pResidual.cwiseAbs()).sum() / (RedLinSysP[1].cwiseAbs()).sum()),

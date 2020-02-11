@@ -92,8 +92,8 @@ CompressibleSteadyNS::CompressibleSteadyNS(int argc, char* argv[])
 void CompressibleSteadyNS::truthSolve()
 {
     Time& runTime = _runTime();
-    //volScalarField& E = pThermo().he();
-    volScalarField& E = _E();
+    volScalarField& E = pThermo().he();
+    //volScalarField& E = _E();
     volVectorField& U = _U();
     simpleControl& simple = _simple();
     volScalarField& p = pThermo().p();

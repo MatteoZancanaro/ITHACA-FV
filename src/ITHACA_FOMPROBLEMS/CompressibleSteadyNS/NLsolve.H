@@ -73,6 +73,9 @@ while (simple.loop() && residual > tolerance && csolve < maxIter )
     //Energy equation phase
     getEmatrix(U, p);
     eresidual = Eeqn_global().solve().initialResidual();
+    //Info << E[100] << endl;
+    //Info << E[1000] << endl;
+    //Info << E[5000] << endl;
     fvOptions.correct(thermo.he());
     thermo.correct(); // Here are calculated both temperature and density based on P,U and he.
     // Pressure equation phase
