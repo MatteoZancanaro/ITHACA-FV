@@ -135,14 +135,19 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
         if (problem->_simple().momentumPredictor())
         {
             problem->getUmatrix(U);
-            problem->Ueqn_global() == -problem->getGradP(P); //Is this better??
             RedLinSysU = ULmodes.project(problem->Ueqn_global(),
                                          NmodesUproj);
-            // volVectorField gradP = problem->getGradP(P); //If you want to use uEqn_global==-getGradP, comment this line.
-            // RedLinSysU[1] = RedLinSysU[1] - ULmodes.project(gradP, NmodesUproj); //If you want to use uEqn_global==-getGradP, comment this line.
+            PtrList<volVectorField> gradModP;
+            for (label i = 0; i < NmodesPproj; i++)
+            {
+                gradModP.append(fvc::grad(problem->Pmodes[i]));
+            }
+            Eigen::MatrixXd projGradModP = ULmodes.project(gradModP, NmodesUproj);
+            Eigen::MatrixXd projGradP = projGradModP * p;
+            RedLinSysU[1] = RedLinSysU[1] - projGradP;
             u = reducedProblem::solveLinearSys(RedLinSysU, u, uResidual, vel_now, "bdcSvd");
             //U = ULmodes.reconstruct(u, "Ur");
-            solve(problem->Ueqn_global());// == - problem->getGradP(P)); //For debug purposes only, second part only useful when using uEqn_global==-getGradP
+            solve(problem->Ueqn_global() == -problem->getGradP(P)); //For debug purposes only, second part only useful when using uEqn_global==-getGradP
             fvOptions.correct(U);
         }
         //Energy equation phase
@@ -196,9 +201,9 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
 
         rho = thermo.rho(); // Here rho is calculated as p*psi = p/(R*T)
         rho.relax();
-        std::cout << "Ures = " << (uResidual.cwiseAbs()).sum() << std::endl;
-        std::cout << "Eres = " << (eResidual.cwiseAbs()).sum() << std::endl;
-        std::cout << "Pres = " << (pResidual.cwiseAbs()).sum() << std::endl;
+        std::cout << "Ures = " << (uResidual.cwiseAbs()).sum() / (RedLinSysU[1].cwiseAbs()).sum() << std::endl;
+        std::cout << "Eres = " << (eResidual.cwiseAbs()).sum() / (RedLinSysE[1].cwiseAbs()).sum()<< std::endl;
+        std::cout << "Pres = " << (pResidual.cwiseAbs()).sum() / (RedLinSysP[1].cwiseAbs()).sum()<< std::endl;
         std::cout << "U = " << u << std::endl;
         std::cout << "E = " << e << std::endl;
         std::cout << "P = " << p << std::endl;
@@ -206,9 +211,9 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
                                (RedLinSysU[1].cwiseAbs()).sum(),
                                (pResidual.cwiseAbs()).sum() / (RedLinSysP[1].cwiseAbs()).sum()),
                            (eResidual.cwiseAbs()).sum() / (RedLinSysE[1].cwiseAbs()).sum());
-        residualJump = max(max(((uResidual - uResidualOld).cwiseAbs()).sum(),
-                               ((pResidual - pResidualOld).cwiseAbs()).sum()),
-                           ((eResidual - eResidualOld).cwiseAbs()).sum());
+        residualJump = max(max(((uResidual - uResidualOld).cwiseAbs()).sum() / (RedLinSysU[1].cwiseAbs()).sum(),
+                               ((pResidual - pResidualOld).cwiseAbs()).sum() / (RedLinSysP[1].cwiseAbs()).sum()),
+                           ((eResidual - eResidualOld).cwiseAbs()).sum() / (RedLinSysE[1].cwiseAbs()).sum());
         std::cout << residualNorm << std::endl;
         std::cout << residualJump << std::endl;
         problem->turbulence->correct();

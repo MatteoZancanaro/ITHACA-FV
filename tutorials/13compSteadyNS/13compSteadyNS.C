@@ -151,7 +151,7 @@ int main(int argc, char* argv[])
     PtrList<volVectorField> uFull;
     ITHACAstream::read_fields(uFull, example.U, "./ITHACAoutput/Offline/");
     Eigen::MatrixXd projU = ITHACAutilities::getCoeffsFrobenius(uFull, reduced.ULmodes, 10);
-    std::cout << projU << std::endl;
+    //std::cout << projU << std::endl;
     PtrList<volVectorField> projectedU = ITHACAutilities::reconstruct_from_coeff(reduced.ULmodes, projU, 10);
     ITHACAstream::exportFields(projectedU, "./ITHACAoutput/Offline/", "projU");
     // Reads inlet volocities boundary conditions.
