@@ -77,6 +77,17 @@ void ReducedCompressibleSteadyNS::setOnlineVelocity(Eigen::MatrixXd vel)
     vel_now = vel_scal;
 }
 
+
+void ReducedCompressibleSteadyNS::projectReducedOperators(int NmodesUproj, int NmodesPproj, int NmodesEproj)
+{
+    PtrList<volVectorField> gradModP;
+    for (label i = 0; i < NmodesPproj; i++)
+    {
+        gradModP.append(fvc::grad(problem->Pmodes[i]));
+    }
+    projGradModP = ULmodes.project(gradModP, NmodesUproj);
+}
+
 // * * * * * * * * * * * * * * * Solve Functions  * * * * * * * * * * * * * //
 
 void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
@@ -125,6 +136,7 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
             || residualNorm > normalizedResidualLim) && csolve < maxIter)
     {
         csolve++;
+        Info << "csolve:" << csolve << endl;
         P.storePrevIter();
         rho.storePrevIter();
         uResidualOld = uResidual;
@@ -137,12 +149,6 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
             problem->getUmatrix(U);
             RedLinSysU = ULmodes.project(problem->Ueqn_global(),
                                          NmodesUproj);
-            PtrList<volVectorField> gradModP;
-            for (label i = 0; i < NmodesPproj; i++)
-            {
-                gradModP.append(fvc::grad(problem->Pmodes[i]));
-            }
-            Eigen::MatrixXd projGradModP = ULmodes.project(gradModP, NmodesUproj);
             Eigen::MatrixXd projGradP = projGradModP * p;
             RedLinSysU[1] = RedLinSysU[1] - projGradP;
             u = reducedProblem::solveLinearSys(RedLinSysU, u, uResidual, vel_now, "bdcSvd");
@@ -202,8 +208,8 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
         rho = thermo.rho(); // Here rho is calculated as p*psi = p/(R*T)
         rho.relax();
         std::cout << "Ures = " << (uResidual.cwiseAbs()).sum() / (RedLinSysU[1].cwiseAbs()).sum() << std::endl;
-        std::cout << "Eres = " << (eResidual.cwiseAbs()).sum() / (RedLinSysE[1].cwiseAbs()).sum()<< std::endl;
-        std::cout << "Pres = " << (pResidual.cwiseAbs()).sum() / (RedLinSysP[1].cwiseAbs()).sum()<< std::endl;
+        std::cout << "Eres = " << (eResidual.cwiseAbs()).sum() / (RedLinSysE[1].cwiseAbs()).sum() << std::endl;
+        std::cout << "Pres = " << (pResidual.cwiseAbs()).sum() / (RedLinSysP[1].cwiseAbs()).sum() << std::endl;
         std::cout << "U = " << u << std::endl;
         std::cout << "E = " << e << std::endl;
         std::cout << "P = " << p << std::endl;
@@ -218,4 +224,8 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
         std::cout << residualJump << std::endl;
         problem->turbulence->correct();
     }
+    label k = 1;
+    ITHACAstream::exportSolution(U, "1", "./ITHACAoutput/Online/");
+    ITHACAstream::exportSolution(P, "1", "./ITHACAoutput/Online/");
+    ITHACAstream::exportSolution(E, "1", "./ITHACAoutput/Online/");
 }

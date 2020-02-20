@@ -97,6 +97,15 @@ class ReducedCompressibleSteadyNS: public ReducedSteadyNSTurb
         ///
         void setOnlineVelocity(Eigen::MatrixXd vel);
 
+        ///
+        /// @brief      It assembles the reduced oeprators using the modes
+        ///
+        /// @param[in]  NmodesUproj  The number of modes one wants to use for velocity projection.
+        /// @param[in]  NmodesPproj  The number of modes one wants to use for pressure projection.
+        /// @param[in]  NmodesEproj  The number of modes one wants to use for energy projection.
+        ///
+        void projectReducedOperators(int NmodesUproj, int NmodesPproj, int NmodesEproj);
+
         // Variables
 
         /// Lifted velocity modes.
@@ -110,6 +119,11 @@ class ReducedCompressibleSteadyNS: public ReducedSteadyNSTurb
 
         /// Counter.
         int counter = 0;
+
+        //Reduced operators
+
+        /// Projected gradient of the pressure modes.
+        Eigen::MatrixXd projGradModP;
 };
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //

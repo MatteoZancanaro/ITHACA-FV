@@ -164,6 +164,7 @@ int main(int argc, char* argv[])
         scalar mu_now = parOn(k, 0);
         example.changeViscosity(mu_now);
         reduced.setOnlineVelocity(vel);
+        reduced.projectReducedOperators(NmodesUproj, NmodesPproj, NmodesEproj);
         reduced.solveOnlineCompressible(mu_now, NmodesUproj, NmodesPproj, NmodesEproj);
     }
     exit(0);
