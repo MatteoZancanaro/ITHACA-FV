@@ -101,14 +101,14 @@ void CompressibleSteadyNS::truthSolve()
     //Info << thermo.mu() << endl;
     //Info << thermo.nu() << endl;
 #include "NLsolve.H"
-    ITHACAstream::exportSolution(U, name(counter), "./ITHACAoutput/Offline/");
-    ITHACAstream::exportSolution(p, name(counter), "./ITHACAoutput/Offline/");
-    ITHACAstream::exportSolution(E, name(counter), "./ITHACAoutput/Offline/");
-    ITHACAstream::exportSolution(_nut, name(counter), "./ITHACAoutput/Offline/");
-    Ufield.append(U);
-    Pfield.append(p);
-    Efield.append(E);
-    nutFields.append(_nut);
+    // ITHACAstream::exportSolution(U, name(counter), "./ITHACAoutput/Offline/");
+    // ITHACAstream::exportSolution(p, name(counter), "./ITHACAoutput/Offline/");
+    // ITHACAstream::exportSolution(E, name(counter), "./ITHACAoutput/Offline/");
+    // ITHACAstream::exportSolution(_nut, name(counter), "./ITHACAoutput/Offline/");
+    // Ufield.append(U);
+    // Pfield.append(p);
+    // Efield.append(E);
+    // nutFields.append(_nut);
     counter++;
 }
 

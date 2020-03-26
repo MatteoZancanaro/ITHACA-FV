@@ -38,6 +38,8 @@ Vector<double> uresidual_v(0, 0, 0);
 scalar presidual = 1;
 
 scalar csolve = 0;
+scalar saver = 0;
+scalar folderN = 0;
 
 
 // Variable that can be changed
@@ -130,7 +132,32 @@ while (simple.loop() && residual > tolerance && csolve < maxIter )
     Info << "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
          << "  ClockTime = " << runTime.elapsedClockTime() << " s"
          << nl << endl;
+
+    saver++;
+    //std::cout << saver << std::endl;
+    if (saver==20)
+    {
+      saver = 0;
+      folderN++;
+      ITHACAstream::exportSolution(U, name(folderN), "./ITHACAoutput/Offline/");
+      ITHACAstream::exportSolution(p, name(folderN), "./ITHACAoutput/Offline/");
+      ITHACAstream::exportSolution(E, name(folderN), "./ITHACAoutput/Offline/");
+      ITHACAstream::exportSolution(_nut, name(folderN), "./ITHACAoutput/Offline/");
+      Ufield.append(U);
+      Pfield.append(p);
+      Efield.append(E);
+      nutFields.append(_nut);
+    }
 }
+
+ITHACAstream::exportSolution(U, name(folderN+1), "./ITHACAoutput/Offline/");
+ITHACAstream::exportSolution(p, name(folderN+1), "./ITHACAoutput/Offline/");
+ITHACAstream::exportSolution(E, name(folderN+1), "./ITHACAoutput/Offline/");
+ITHACAstream::exportSolution(_nut, name(folderN+1), "./ITHACAoutput/Offline/");
+Ufield.append(U);
+Pfield.append(p);
+Efield.append(E);
+nutFields.append(_nut);
 
 res_os << residual << std::endl;
 res_os.close();
