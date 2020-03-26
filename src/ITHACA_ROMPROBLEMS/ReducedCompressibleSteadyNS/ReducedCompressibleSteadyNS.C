@@ -154,17 +154,17 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
 
         problem->getUmatrix(U);
 
-        if (problem->_simple().momentumPredictor())
-        {
+        //if (problem->_simple().momentumPredictor())
+        //{
             RedLinSysU = ULmodes.project(problem->Ueqn_global(),
                                          NmodesUproj);
             Eigen::MatrixXd projGradP = projGradModP * p;
             RedLinSysU[1] = RedLinSysU[1] - projGradP;
             u = reducedProblem::solveLinearSys(RedLinSysU, u, uResidual, vel_now, "bdcSvd");
-            //U = ULmodes.reconstruct(u, "Ur");
-            solve(problem->Ueqn_global() == -problem->getGradP(P)); //For debug purposes only, second part only useful when using uEqn_global==-getGradP
+            U = ULmodes.reconstruct(u, "Ur");
+            //solve(problem->Ueqn_global() == -problem->getGradP(P)); //For debug purposes only, second part only useful when using uEqn_global==-getGradP
             fvOptions.correct(U);
-        }
+        //}
         //Energy equation phase
         problem->getEmatrix(U, P);
         List<Eigen::MatrixXd> RedLinSysE = problem->Emodes.project(
