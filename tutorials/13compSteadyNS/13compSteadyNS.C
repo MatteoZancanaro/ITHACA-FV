@@ -41,18 +41,8 @@ public:
     /// Constructor
     explicit tutorial13(int argc, char* argv[])
         :
-        CompressibleSteadyNS(argc, argv),
-        U(_U()),
-        p(_p()),
-        E(_E())
+        CompressibleSteadyNS(argc, argv)
     {}
-
-    /// Velocity field
-    volVectorField& U;
-    /// Pressure field
-    volScalarField& p;
-    /// Energy field
-    volScalarField& E;
 
     /// Perform an Offline solve
     void offlineSolve()
@@ -63,9 +53,16 @@ public:
         // if the offline solution is already performed read the fields
         if (offline)
         {
-            ITHACAstream::read_fields(Ufield, U, "./ITHACAoutput/Offline/");
-            ITHACAstream::read_fields(Pfield, p, "./ITHACAoutput/Offline/");
-            ITHACAstream::read_fields(Efield, E, "./ITHACAoutput/Offline/");
+                /// Velocity field
+            volVectorField& U = _U();
+            /// Pressure field
+            volScalarField& p = _p();
+            /// Energy field
+            volScalarField& E = _E();
+
+            ITHACAstream::readMiddleFields(Ufield, U, "./ITHACAoutput/Offline/");
+            ITHACAstream::readMiddleFields(Efield, E, "./ITHACAoutput/Offline/");
+            ITHACAstream::readMiddleFields(Pfield, p, "./ITHACAoutput/Offline/");
             mu_samples = ITHACAstream::readMatrix("./parsOff_mat.txt");
         }
         // else perform offline stage
@@ -79,7 +76,7 @@ public:
                 //mu_now[0] = mu(i, 0);
                 //changeViscosity(mu_now[0]);
                 changeViscosity(mu(i, 0));
-                assignIF(U, Uinl);
+                assignIF(_U(), Uinl);
                 //truthSolve(mu_now);
                 truthSolve();
             }
@@ -135,7 +132,7 @@ int main(int argc, char* argv[])
     //Perform the offline solve
     example.offlineSolve();
     //Read the lift field
-    ITHACAstream::read_fields(example.liftfield, example.U, "./lift/");
+    ITHACAstream::read_fields(example.liftfield, example._U(), "./lift/");
     ITHACAutilities::normalizeFields(example.liftfield);
     // Homogenize the snapshots
     example.computeLift(example.Ufield, example.liftfield, example.Uomfield);
@@ -148,12 +145,13 @@ int main(int argc, char* argv[])
                         NmodesEout);
     // Create the reduced object
     ReducedCompressibleSteadyNS reduced(example);
-    PtrList<volVectorField> uFull;
-    ITHACAstream::read_fields(uFull, example.U, "./ITHACAoutput/Offline/");
-    Eigen::MatrixXd projU = ITHACAutilities::getCoeffsFrobenius(uFull, reduced.ULmodes, 10);
-    //std::cout << projU << std::endl;
-    PtrList<volVectorField> projectedU = ITHACAutilities::reconstruct_from_coeff(reduced.ULmodes, projU, 10);
-    ITHACAstream::exportFields(projectedU, "./ITHACAoutput/Offline/", "projU");
+    // PtrList<volVectorField> uFull;
+    // ITHACAstream::read_fields(uFull, example.U, "./ITHACAoutput/Offline/");
+    // Eigen::MatrixXd projU = ITHACAutilities::getCoeffsFrobenius(uFull, reduced.ULmodes, 10);
+    // //std::cout << projU << std::endl;
+    // PtrList<volVectorField> projectedU = ITHACAutilities::reconstruct_from_coeff(reduced.ULmodes, projU, 10);
+    // ITHACAstream::exportFields(projectedU, "./ITHACAoutput/Offline/", "projU");
+    
     // Reads inlet volocities boundary conditions.
     word vel_file(para.ITHACAdict->lookup("online_velocities"));
     Eigen::MatrixXd vel = ITHACAstream::readMatrix(vel_file);

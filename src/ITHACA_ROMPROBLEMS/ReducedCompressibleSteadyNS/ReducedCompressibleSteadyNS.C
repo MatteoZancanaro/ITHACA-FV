@@ -154,24 +154,21 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
 
         problem->getUmatrix(U);
 
-        //if (problem->_simple().momentumPredictor())
-        //{
-            RedLinSysU = ULmodes.project(problem->Ueqn_global(),
-                                         NmodesUproj);
-            Eigen::MatrixXd projGradP = projGradModP * p;
-            RedLinSysU[1] = RedLinSysU[1] - projGradP;
-            u = reducedProblem::solveLinearSys(RedLinSysU, u, uResidual, vel_now, "bdcSvd");
-            U = ULmodes.reconstruct(u, "Ur");
-            //solve(problem->Ueqn_global() == -problem->getGradP(P)); //For debug purposes only, second part only useful when using uEqn_global==-getGradP
-            fvOptions.correct(U);
-        //}
+        RedLinSysU = ULmodes.project(problem->Ueqn_global(), NmodesUproj);
+        Eigen::MatrixXd projGradP = projGradModP * p;
+        RedLinSysU[1] = RedLinSysU[1] - projGradP;
+        u = reducedProblem::solveLinearSys(RedLinSysU, u, uResidual, vel_now, "bdcSvd");
+        U = ULmodes.reconstruct(u, "Ur");
+        //solve(problem->Ueqn_global() == -problem->getGradP(P)); //For debug purposes only, second part only useful when using uEqn_global==-getGradP
+        fvOptions.correct(U);
+        
         //Energy equation phase
         problem->getEmatrix(U, P);
         List<Eigen::MatrixXd> RedLinSysE = problem->Emodes.project(
                                                problem->Eeqn_global(), NmodesEproj);
         e = reducedProblem::solveLinearSys(RedLinSysE, e, eResidual);
-        //E = problem->Emodes.reconstruct(e, "Er");
-        problem->Eeqn_global().solve(); //For debug purposes only
+        E = problem->Emodes.reconstruct(e, "Er");
+        //problem->Eeqn_global().solve(); //For debug purposes only
         //fvOptions.correct(thermo.he());
         fvOptions.correct(E);
         thermo.correct(); // Here are calculated both temperature and density based on P,U and he.
@@ -192,8 +189,8 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
             RedLinSysP = problem->Pmodes.project(problem->Peqn_global(), NmodesPproj);
             p = reducedProblem::solveLinearSys(RedLinSysP, p, pResidual);
             //P.storePrevIter();
-            //P = problem->Pmodes.reconstruct(p, "Pr");
-            problem->Peqn_global().solve(); //For debug purposes only
+            P = problem->Pmodes.reconstruct(p, "Pr");
+            //problem->Peqn_global().solve(); //For debug purposes only
 
             if (problem->_simple().finalNonOrthogonalIter())
             {
