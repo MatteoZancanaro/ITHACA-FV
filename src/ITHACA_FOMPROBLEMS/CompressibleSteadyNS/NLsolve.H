@@ -139,10 +139,10 @@ while (simple.loop() && residual > tolerance && csolve < maxIter )
     {
       saver = 0;
       folderN++;
-      ITHACAstream::exportSolution(U, name(folderN), "./ITHACAoutput/Offline/");
-      ITHACAstream::exportSolution(p, name(folderN), "./ITHACAoutput/Offline/");
-      ITHACAstream::exportSolution(E, name(folderN), "./ITHACAoutput/Offline/");
-      ITHACAstream::exportSolution(_nut, name(folderN), "./ITHACAoutput/Offline/");
+      ITHACAstream::exportSolution(U, name(folderN), "./ITHACAoutput/Offline/" + name(counter));
+      ITHACAstream::exportSolution(p, name(folderN), "./ITHACAoutput/Offline/" + name(counter));
+      ITHACAstream::exportSolution(E, name(folderN), "./ITHACAoutput/Offline/" + name(counter));
+      ITHACAstream::exportSolution(_nut, name(folderN), "./ITHACAoutput/Offline/" + name(counter));
       Ufield.append(U);
       Pfield.append(p);
       Efield.append(E);
@@ -150,10 +150,10 @@ while (simple.loop() && residual > tolerance && csolve < maxIter )
     }
 }
 
-ITHACAstream::exportSolution(U, name(folderN+1), "./ITHACAoutput/Offline/");
-ITHACAstream::exportSolution(p, name(folderN+1), "./ITHACAoutput/Offline/");
-ITHACAstream::exportSolution(E, name(folderN+1), "./ITHACAoutput/Offline/");
-ITHACAstream::exportSolution(_nut, name(folderN+1), "./ITHACAoutput/Offline/");
+ITHACAstream::exportSolution(U, name(folderN+1), "./ITHACAoutput/Offline/" + name(counter));
+ITHACAstream::exportSolution(p, name(folderN+1), "./ITHACAoutput/Offline/" + name(counter));
+ITHACAstream::exportSolution(E, name(folderN+1), "./ITHACAoutput/Offline/" + name(counter));
+ITHACAstream::exportSolution(_nut, name(folderN+1), "./ITHACAoutput/Offline/" + name(counter));
 Ufield.append(U);
 Pfield.append(p);
 Efield.append(E);
