@@ -558,6 +558,7 @@ void ITHACAstream::readMiddleFields(PtrList<fieldType>& Lfield,
 
     while (ITHACAutilities::check_folder(casename + name(par)))
     {
+        std::cout << "Reading folder number " + name(par) << std::endl; 
         ITHACAstream::read_fields(Lfield, field, casename + name(par) + "/");
         par++;
     }

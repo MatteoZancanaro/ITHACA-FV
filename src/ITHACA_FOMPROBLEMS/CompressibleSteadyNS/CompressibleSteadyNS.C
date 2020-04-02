@@ -79,7 +79,7 @@ CompressibleSteadyNS::CompressibleSteadyNS(int argc, char* argv[])
             IOobject::NO_WRITE
         )
     );
-    para = new ITHACAparameters;
+    ITHACAparameters* para = ITHACAparameters::getInstance(_mesh(),_runTime());
     offline = ITHACAutilities::check_off();
     podex = ITHACAutilities::check_pod();
 }
@@ -89,17 +89,14 @@ CompressibleSteadyNS::CompressibleSteadyNS(int argc, char* argv[])
 
 // Method to perform a truthSolve
 
-void CompressibleSteadyNS::truthSolve()
+void CompressibleSteadyNS::truthSolve(word folder, bool middleExport)
 {
     Time& runTime = _runTime();
-    volScalarField& E = pThermo().he();
-    //volScalarField& E = _E();
     volVectorField& U = _U();
-    simpleControl& simple = _simple();
     volScalarField& p = pThermo().p();
+    volScalarField& E = pThermo().he();
+    simpleControl& simple = _simple();
     volScalarField _nut(turbulence->nut());
-    //Info << thermo.mu() << endl;
-    //Info << thermo.nu() << endl;
 #include "NLsolve.H"
     // ITHACAstream::exportSolution(U, name(counter), "./ITHACAoutput/Offline/");
     // ITHACAstream::exportSolution(p, name(counter), "./ITHACAoutput/Offline/");
@@ -160,10 +157,6 @@ fvVectorMatrix CompressibleSteadyNS::getUmatrix(volVectorField&
                                         ));
     Ueqn_global().relax();
     fvOptions.constrain(Ueqn_global());
-    //Ueqn_global.reset(new fvVectorMatrix(Ueqn_global()
-    //                                  ==
-    //                                  -getGradP(p)
-    //                                 ));
     return Ueqn_global();
 }
 
@@ -193,10 +186,8 @@ fvScalarMatrix CompressibleSteadyNS::getDiffTerm()
 }
 
 fvScalarMatrix CompressibleSteadyNS::getEmatrix(volVectorField& U,
-        volScalarField& p)//, scalar& eresidual)
+        volScalarField& p)
 {
-    // fluidThermo& thermo = pThermo();
-    // volScalarField& he = thermo.he();
     volScalarField& he = pThermo().he();
     volScalarField& rho = _rho();
     fv::options& fvOptions = _fvOptions();
@@ -405,76 +396,3 @@ void CompressibleSteadyNS::restart()
 #include "initContinuityErrs.H"
     //turbulence->validate();
 }
-
-// fvScalarMatrix CompressibleSteadyNS::getPmatrix(volVectorField& U,
-//         volScalarField& p, scalar& presidual, fvVectorMatrix& Ueqn)
-// {
-//     surfaceScalarField& phi = _phi();
-//     volScalarField& rho = _rho();
-//     fv::options& fvOptions = _fvOptions();
-//     simpleControl& simple = _simple();
-//     fluidThermo& thermo = pThermo();
-//     volScalarField& psi = _psi();
-//     pressureControl& pressureControl = _pressureControl();
-//     Time& runTime = _runTime();
-//     fvMesh& mesh = _mesh();
-//     dimensionedScalar& initialMass = _initialMass();
-//     bool closedVolume = false;
-
-//     // Update the pressure BCs to ensure flux consistency
-//     constrainPressure(p, rho, U, getPhiHbyA(Ueqn, U, p), getRhorAUf(Ueqn));
-
-//     closedVolume = adjustPhi(phiHbyA(), U, p);
-//     while (simple.correctNonOrthogonal())
-//     {
-//         // Peqn_global.reset(new fvScalarMatrix(
-//         //                       fvc::div(phiHbyA)
-//         //                       - fvm::laplacian(rhorAUf, p)
-//         //                       ==
-//         //                       fvOptions(psi, p, rho.name())
-//         //                   ));
-//         Peqn_global.reset(new fvScalarMatrix(
-//                               getDivPhiHbyA()
-//                               - getPoissonTerm(p)
-//                               ==
-//                               fvOptions(psi, p, rho.name())
-//                           ));
-//         Peqn_global().setReference
-//         (
-//             pressureControl.refCell(),
-//             pressureControl.refValue()
-//         );
-//         presidual = Peqn_global().solve().initialResidual();
-
-//         if (simple.finalNonOrthogonalIter())
-//         {
-//             phi = phiHbyA() + Peqn_global().flux();
-//         }
-//     }
-
-// #include "incompressible/continuityErrs.H"
-//     // Explicitly relax pressure for momentum corrector
-//     p.relax();
-//     U = HbyA() - (1.0 / Ueqn.A()) * fvc::grad(p);//rAU * fvc::grad(p);
-//     U.correctBoundaryConditions();
-//     fvOptions.correct(U);
-//     bool pLimited = pressureControl.limit(p);
-
-//     // For closed-volume cases adjust the pressure and density levels
-//     // to obey overall mass continuity
-//     if (closedVolume)
-//     {
-//         p += (initialMass - fvc::domainIntegrate(psi * p))
-//              / fvc::domainIntegrate(psi);
-//     }
-
-//     if (pLimited || closedVolume)
-//     {
-//         p.correctBoundaryConditions();
-//     }
-
-//     rho = thermo.rho(); // Here rho is calculated as p*psi = p/(R*T)
-//     rho.relax();
-
-//     return Peqn_global();
-// }

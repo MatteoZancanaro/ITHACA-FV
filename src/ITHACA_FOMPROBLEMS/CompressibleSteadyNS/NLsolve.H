@@ -37,6 +37,8 @@ scalar eresidual = 1;
 Vector<double> uresidual_v(0, 0, 0);
 scalar presidual = 1;
 
+ITHACAparameters* para = ITHACAparameters::getInstance();
+int middleStep = para->ITHACAdict->lookupOrDefault<int>("middleStep", 20);
 scalar csolve = 0;
 scalar saver = 0;
 scalar folderN = 0;
@@ -65,28 +67,17 @@ while (simple.loop() && residual > tolerance && csolve < maxIter )
     if (simple.momentumPredictor())
     {
         uresidual_v = solve(Ueqn_global() == - getGradP(p)).initialResidual(); //Working
-        // dimensionedVector Zer("Z", dimForce, vector(0,0,0));
-        // dimensionedScalar Vol("V", dimVolume, 1.0);
-        // dimensionedVector zero = Zer/Vol;
-        // uresidual_v = solve(Ueqn_global() == zero).initialResidual(); //Not working
-        //uresidual_v = Ueqn_global().solve().initialResidual(); //Not working
-        //uresidual_v = getUmatrix(U, p).solve().initialResidual(); //Not working
         fvOptions.correct(U);
     }
 
     //Energy equation phase
     getEmatrix(U, p);
     eresidual = Eeqn_global().solve().initialResidual();
-    //Info << E[100] << endl;
-    //Info << E[1000] << endl;
-    //Info << E[5000] << endl;
     fvOptions.correct(thermo.he());
     thermo.correct(); // Here are calculated both temperature and density based on P,U and he.
     // Pressure equation phase
     constrainPressure(p, rho, U, getPhiHbyA(Ueqn_global(), U, p),
                       getRhorAUf(Ueqn_global()));// Update the pressure BCs to ensure flux consistency
-    //closedVolume = adjustPhi(phiHbyA(), U, p);
-    //closedVolume = adjustPhi(getPhiHbyA(Ueqn_global(), U, p), U, p);
     surfaceScalarField phiHbyACalculated = getPhiHbyA(Ueqn_global(), U, p);
     closedVolume = adjustPhi(phiHbyACalculated, U, p);
 
@@ -98,14 +89,13 @@ while (simple.loop() && residual > tolerance && csolve < maxIter )
 
         if (simple.finalNonOrthogonalIter())
         {
-            //phi = phiHbyA() + Peqn_global().flux();
             phi = getPhiHbyA(Ueqn_global(), U, p) + Peqn_global().flux();
         }
     }
 
 #include "incompressible/continuityErrs.H"
     p.relax();// Explicitly relax pressure for momentum corrector
-    U = HbyA() - (1.0 / Ueqn_global().A()) * getGradP(p);//rAU * fvc::grad(p);
+    U = HbyA() - (1.0 / Ueqn_global().A()) * getGradP(p);
     U.correctBoundaryConditions();
     fvOptions.correct(U);
     bool pLimited = pressureControl.limit(p);
@@ -134,15 +124,14 @@ while (simple.loop() && residual > tolerance && csolve < maxIter )
          << nl << endl;
 
     saver++;
-    //std::cout << saver << std::endl;
-    if (saver==20)
+    if (middleExport && saver==middleStep)
     {
       saver = 0;
       folderN++;
-      ITHACAstream::exportSolution(U, name(folderN), "./ITHACAoutput/Offline/" + name(counter));
-      ITHACAstream::exportSolution(p, name(folderN), "./ITHACAoutput/Offline/" + name(counter));
-      ITHACAstream::exportSolution(E, name(folderN), "./ITHACAoutput/Offline/" + name(counter));
-      ITHACAstream::exportSolution(_nut, name(folderN), "./ITHACAoutput/Offline/" + name(counter));
+      ITHACAstream::exportSolution(U, name(folderN), folder + name(counter));
+      ITHACAstream::exportSolution(p, name(folderN), folder + name(counter));
+      ITHACAstream::exportSolution(E, name(folderN), folder + name(counter));
+      ITHACAstream::exportSolution(_nut, name(folderN), folder + name(counter));
       Ufield.append(U);
       Pfield.append(p);
       Efield.append(E);
@@ -150,10 +139,20 @@ while (simple.loop() && residual > tolerance && csolve < maxIter )
     }
 }
 
-ITHACAstream::exportSolution(U, name(folderN+1), "./ITHACAoutput/Offline/" + name(counter));
-ITHACAstream::exportSolution(p, name(folderN+1), "./ITHACAoutput/Offline/" + name(counter));
-ITHACAstream::exportSolution(E, name(folderN+1), "./ITHACAoutput/Offline/" + name(counter));
-ITHACAstream::exportSolution(_nut, name(folderN+1), "./ITHACAoutput/Offline/" + name(counter));
+if (middleExport)
+{
+  ITHACAstream::exportSolution(U, name(folderN+1), folder + name(counter));
+  ITHACAstream::exportSolution(p, name(folderN+1), folder + name(counter));
+  ITHACAstream::exportSolution(E, name(folderN+1), folder + name(counter));
+  ITHACAstream::exportSolution(_nut, name(folderN+1), folder + name(counter));
+}
+else
+{
+  ITHACAstream::exportSolution(U, name(counter), folder);
+  ITHACAstream::exportSolution(p, name(counter), folder);
+  ITHACAstream::exportSolution(E, name(counter), folder);
+  ITHACAstream::exportSolution(_nut, name(counter), folder);
+}
 Ufield.append(U);
 Pfield.append(p);
 Efield.append(E);

@@ -83,7 +83,7 @@ class CompressibleSteadyNS: public SteadyNSTurb
         /// the Parameters folder.
         ///
         //void truthSolve(List<scalar> mu_now);
-        void truthSolve();
+        void truthSolve(word folder, bool middleExport);
 
         // Momuntum equation terms
         fvVectorMatrix getUmatrix(volVectorField& U);//, Vector<double>& uresidual_v);
@@ -117,11 +117,6 @@ class CompressibleSteadyNS: public SteadyNSTurb
         /// set all variables back to the values into the 0 folder
         /// 
         void restart();
-
-        /// Initialization for the full velocity linear system.
-        //fvVectorMatrix* Ueqn_global;
-
-        //fvVectorMatrix Ueqn();
 
         autoPtr<fluidThermo> pThermo;
 

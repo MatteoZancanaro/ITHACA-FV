@@ -106,22 +106,20 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
     Eigen::VectorXd pResidual(Eigen::Map<Eigen::VectorXd>(pResidualOld.data(),
                               NmodesPproj));
     // Parameters definition
-    ITHACAparameters para;
+    ITHACAparameters* para = ITHACAparameters::getInstance();
     float residualJumpLim =
-        para.ITHACAdict->lookupOrDefault<float>("residualJumpLim", 1e-5);
+        para->ITHACAdict->lookupOrDefault<float>("residualJumpLim", 1e-5);
     float normalizedResidualLim =
-        para.ITHACAdict->lookupOrDefault<float>("normalizedResidualLim", 1e-5);
+        para->ITHACAdict->lookupOrDefault<float>("normalizedResidualLim", 1e-5);
     int maxIter =
-        para.ITHACAdict->lookupOrDefault<float>("maxIter", 2000);
+        para->ITHACAdict->lookupOrDefault<float>("maxIter", 2000);
     bool closedVolume = false;
     label csolve = 0;
     // Full variables initialization
     fluidThermo& thermo = problem->pThermo();
     volVectorField& U = problem->_U();
     volScalarField& P = problem->pThermo->p();
-    //volScalarField& P = thermo.p();
     volScalarField& E = problem->pThermo->he();
-    //volScalarField& E = problem->_E();
     volScalarField& rho = problem->_rho();
     volScalarField& psi = problem->_psi();
     surfaceScalarField& phi = problem->_phi();
@@ -169,15 +167,11 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
         e = reducedProblem::solveLinearSys(RedLinSysE, e, eResidual);
         E = problem->Emodes.reconstruct(e, "Er");
         //problem->Eeqn_global().solve(); //For debug purposes only
-        //fvOptions.correct(thermo.he());
         fvOptions.correct(E);
         thermo.correct(); // Here are calculated both temperature and density based on P,U and he.
         // Pressure equation phase
         constrainPressure(P, rho, U, problem->getPhiHbyA(problem->Ueqn_global(), U, P),
-                          problem->getRhorAUf(
-                              problem->Ueqn_global()));// Update the pressure BCs to ensure flux consistency
-        //closedVolume = adjustPhi(problem->phiHbyA(), U, P);
-        //closedVolume = adjustPhi(problem->getPhiHbyA(problem->Ueqn_global(), U, P), U, P);
+                          problem->getRhorAUf(problem->Ueqn_global()));// Update the pressure BCs to ensure flux consistency
         surfaceScalarField phiHbyACalculated = problem->getPhiHbyA(problem->Ueqn_global(), U, P);
         closedVolume = adjustPhi(phiHbyACalculated, U, P);
 
@@ -188,13 +182,11 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
             problem->getPmatrix(problem->Ueqn_global(), U, P);
             RedLinSysP = problem->Pmodes.project(problem->Peqn_global(), NmodesPproj);
             p = reducedProblem::solveLinearSys(RedLinSysP, p, pResidual);
-            //P.storePrevIter();
             P = problem->Pmodes.reconstruct(p, "Pr");
             //problem->Peqn_global().solve(); //For debug purposes only
 
             if (problem->_simple().finalNonOrthogonalIter())
             {
-                //phi = problem->phiHbyA() + problem->Peqn_global().flux();
                 phi = problem->getPhiHbyA(problem->Ueqn_global(), U, P) + problem->Peqn_global().flux();
             }
         }
@@ -218,15 +210,14 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
             P.correctBoundaryConditions();
         }
 
-        //rho.storePrevIter();
         rho = thermo.rho(); // Here rho is calculated as p*psi = p/(R*T)
         rho.relax();
         std::cout << "Ures = " << (uResidual.cwiseAbs()).sum() / (RedLinSysU[1].cwiseAbs()).sum() << std::endl;
         std::cout << "Eres = " << (eResidual.cwiseAbs()).sum() / (RedLinSysE[1].cwiseAbs()).sum() << std::endl;
         std::cout << "Pres = " << (pResidual.cwiseAbs()).sum() / (RedLinSysP[1].cwiseAbs()).sum() << std::endl;
-        std::cout << "U = " << u << std::endl;
-        std::cout << "E = " << e << std::endl;
-        std::cout << "P = " << p << std::endl;
+        // std::cout << "U = " << u << std::endl;
+        // std::cout << "E = " << e << std::endl;
+        // std::cout << "P = " << p << std::endl;
         residualNorm = max(max((uResidual.cwiseAbs()).sum() /
                                (RedLinSysU[1].cwiseAbs()).sum(),
                                (pResidual.cwiseAbs()).sum() / (RedLinSysP[1].cwiseAbs()).sum()),

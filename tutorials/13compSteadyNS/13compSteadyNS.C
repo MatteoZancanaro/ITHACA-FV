@@ -45,24 +45,21 @@ public:
     {}
 
     /// Perform an Offline solve
-    void offlineSolve()
+    void offlineSolve(word folder = "./ITHACAoutput/Offline/", bool middleExport = true)
     {
-        //Vector<double> inl(0, 0, 0);
-        //List<scalar> mu_now(1);
-
         // if the offline solution is already performed read the fields
         if (offline)
         {
-                /// Velocity field
+            /// Velocity field
             volVectorField& U = _U();
             /// Pressure field
             volScalarField& p = _p();
             /// Energy field
             volScalarField& E = _E();
 
-            ITHACAstream::readMiddleFields(Ufield, U, "./ITHACAoutput/Offline/");
-            ITHACAstream::readMiddleFields(Efield, E, "./ITHACAoutput/Offline/");
-            ITHACAstream::readMiddleFields(Pfield, p, "./ITHACAoutput/Offline/");
+            ITHACAstream::readMiddleFields(Ufield, U, folder);
+            ITHACAstream::readMiddleFields(Efield, E, folder);
+            ITHACAstream::readMiddleFields(Pfield, p, folder);
             mu_samples = ITHACAstream::readMatrix("./parsOff_mat.txt");
         }
         // else perform offline stage
@@ -73,12 +70,9 @@ public:
             for (label i = 0; i < mu.rows(); i++)
             {
                 std::cout << "Current mu = " << mu(i, 0) << std::endl;
-                //mu_now[0] = mu(i, 0);
-                //changeViscosity(mu_now[0]);
                 changeViscosity(mu(i, 0));
                 assignIF(_U(), Uinl);
-                //truthSolve(mu_now);
-                truthSolve();
+                truthSolve(folder, middleExport);
             }
         }
     }
@@ -89,6 +83,8 @@ int main(int argc, char* argv[])
 {
     // Construct the tutorial object
     tutorial13 example(argc, argv);
+
+    ITHACAparameters* para = ITHACAparameters::getInstance();
 
     //Eigen::MatrixXd parOff;
     std::ifstream exFileOff("./parsOff_mat.txt");
@@ -118,13 +114,12 @@ int main(int argc, char* argv[])
     }
 
     // Read some parameters from file
-    ITHACAparameters para;
-    int NmodesUout = para.ITHACAdict->lookupOrDefault<int>("NmodesUout", 15);
-    int NmodesPout = para.ITHACAdict->lookupOrDefault<int>("NmodesPout", 15);
-    int NmodesEout = para.ITHACAdict->lookupOrDefault<int>("NmodesEout", 15);
-    int NmodesUproj = para.ITHACAdict->lookupOrDefault<int>("NmodesUproj", 10);
-    int NmodesPproj = para.ITHACAdict->lookupOrDefault<int>("NmodesPproj", 10);
-    int NmodesEproj = para.ITHACAdict->lookupOrDefault<int>("NmodesEproj", 10);
+    int NmodesUout = para->ITHACAdict->lookupOrDefault<int>("NmodesUout", 15);
+    int NmodesPout = para->ITHACAdict->lookupOrDefault<int>("NmodesPout", 15);
+    int NmodesEout = para->ITHACAdict->lookupOrDefault<int>("NmodesEout", 15);
+    int NmodesUproj = para->ITHACAdict->lookupOrDefault<int>("NmodesUproj", 10);
+    int NmodesPproj = para->ITHACAdict->lookupOrDefault<int>("NmodesPproj", 10);
+    int NmodesEproj = para->ITHACAdict->lookupOrDefault<int>("NmodesEproj", 10);
     //Set the inlet boundaries patch 0 directions x and y
     example.inletIndex.resize(1, 2);
     example.inletIndex(0, 0) = 1;
@@ -137,23 +132,18 @@ int main(int argc, char* argv[])
     // Homogenize the snapshots
     example.computeLift(example.Ufield, example.liftfield, example.Uomfield);
     // Perform POD on velocity and pressure and store the first 10 modes
-    ITHACAPOD::getModes(example.Uomfield, example.Umodes, example.podex, 0, 0,
+    ITHACAPOD::getModes(example.Uomfield, example.Umodes, example._U().name(), example.podex, 0, 0,
                         NmodesUout);
-    ITHACAPOD::getModes(example.Pfield, example.Pmodes, example.podex, 0, 0,
+    ITHACAPOD::getModes(example.Pfield, example.Pmodes, example._p().name(), example.podex, 0, 0,
                         NmodesPout);
-    ITHACAPOD::getModes(example.Efield, example.Emodes, example.podex, 0, 0,
+    ITHACAPOD::getModes(example.Efield, example.Emodes, example._E().name(), example.podex, 0, 0,
                         NmodesEout);
+    
     // Create the reduced object
     ReducedCompressibleSteadyNS reduced(example);
-    // PtrList<volVectorField> uFull;
-    // ITHACAstream::read_fields(uFull, example.U, "./ITHACAoutput/Offline/");
-    // Eigen::MatrixXd projU = ITHACAutilities::getCoeffsFrobenius(uFull, reduced.ULmodes, 10);
-    // //std::cout << projU << std::endl;
-    // PtrList<volVectorField> projectedU = ITHACAutilities::reconstruct_from_coeff(reduced.ULmodes, projU, 10);
-    // ITHACAstream::exportFields(projectedU, "./ITHACAoutput/Offline/", "projU");
     
     // Reads inlet volocities boundary conditions.
-    word vel_file(para.ITHACAdict->lookup("online_velocities"));
+    word vel_file(para->ITHACAdict->lookup("online_velocities"));
     Eigen::MatrixXd vel = ITHACAstream::readMatrix(vel_file);
 
     //Perform the online solutions
@@ -167,5 +157,21 @@ int main(int argc, char* argv[])
         example.turbulence->validate();
         reduced.solveOnlineCompressible(mu_now, NmodesUproj, NmodesPproj, NmodesEproj);
     }
+
+    if(!ITHACAutilities::check_folder("./checkOff"))
+    {
+        tutorial13 checkOff(argc, argv);
+        checkOff.mu  = ITHACAstream::readMatrix("./parsOn_mat.txt");
+        //Set the inlet boundaries patch 0 directions x and y
+        checkOff.inletIndex.resize(1, 2);
+        checkOff.inletIndex(0, 0) = 1;
+        checkOff.inletIndex(0, 1) = 0;
+        //Perform the offline solve
+        checkOff.offline=false;
+        bool middleExport = false;
+        checkOff.restart();
+        checkOff.offlineSolve("./checkOff/", middleExport);
+    }
+
     exit(0);
 }
