@@ -63,7 +63,6 @@ void reducedSimpleSteadyNS::solveOnline_Simple(scalar mu_now,
         int NmodesUproj, int NmodesPproj, int NmodesNut, int NmodesSup, word Folder)
 {
     ULmodes.resize(0);
-    std::cout << "debug 1" << std::endl;
 
     for (int i = 0; i < problem->inletIndex.rows(); i++)
     {
@@ -204,7 +203,6 @@ void reducedSimpleSteadyNS::solveOnline_Simple(scalar mu_now,
         }
 
         List<Eigen::MatrixXd> RedLinSysP;
-
         while (simple.correctNonOrthogonal())
         {
             fvScalarMatrix pEqn
