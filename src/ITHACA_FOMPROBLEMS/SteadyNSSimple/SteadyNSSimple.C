@@ -276,6 +276,7 @@ void SteadyNSSimple::truthSolve2(List<scalar> mu_now, word Folder)
             {
                 presidual = pEqn.solve().initialResidual();
             }
+
             else
             {
                 pEqn.solve().initialResidual();
@@ -307,6 +308,9 @@ void SteadyNSSimple::truthSolve2(List<scalar> mu_now, word Folder)
             ITHACAstream::exportSolution(p, name(folderN), Folder + name(counter));
             Ufield.append(U);
             Pfield.append(p);
+            auto nut = mesh.lookupObject<volScalarField>("nut");
+            ITHACAstream::exportSolution(nut, name(folderN), Folder + name(counter));
+            nutFields.append(nut);
         }
     }
 
@@ -321,6 +325,11 @@ void SteadyNSSimple::truthSolve2(List<scalar> mu_now, word Folder)
         auto nut = mesh.lookupObject<volScalarField>("nut");
         ITHACAstream::exportSolution(nut, name(folderN + 1), Folder + name(counter));
         nutFields.append(nut);
+    }
+    else
+    {
+        ITHACAstream::exportSolution(U, name(counter), Folder);
+        ITHACAstream::exportSolution(p, name(counter), Folder);
     }
 
     Ufield.append(U);

@@ -27,6 +27,9 @@ SourceFiles
     019simpleTurbGeom.C
 \*---------------------------------------------------------------------------*/
 
+#include <torch/script.h>
+#include <torch/torch.h>
+#include "torch2Eigen.H"
 #include "SteadyNSSimple.H"
 #include "ITHACAstream.H"
 #include "ITHACAPOD.H"
@@ -36,13 +39,412 @@ SourceFiles
 #include "RBFMotionSolver.H"
 
 
-class tutorial19 : public SteadyNSSimple
+using namespace ITHACAtorch::torch2Eigen;
+
+class SteadyNSSimpleNN : public SteadyNSSimple
+{
+    public:
+    /// Constructor
+    SteadyNSSimpleNN(int argc, char* argv[])
+        :
+        SteadyNSSimple(argc, argv)
+        {};
+
+    Eigen::MatrixXd bias_inp;
+    Eigen::MatrixXd scale_inp;
+    Eigen::MatrixXd bias_out;
+    Eigen::MatrixXd scale_out;
+
+    Eigen::MatrixXd coeffL2Nut;
+    Eigen::MatrixXd coeffL2U;
+
+    torch::Tensor coeffL2U_tensor;
+    torch::Tensor coeffL2Nut_tensor;
+
+    torch::nn::Sequential Net;
+    torch::optim::Optimizer* optimizer;
+
+    void getTurbNN()
+    {
+        if (!ITHACAutilities::check_file("./ITHACAoutput/Offline/NN/Net.pt"))
+        {
+            coeffL2Nut = ITHACAutilities::getCoeffs(nutFields, nutModes,
+                                                    NNutModes, false);
+            coeffL2Nut.transposeInPlace();
+            coeffL2U = ITHACAutilities::getCoeffs(Ufield, Umodes,
+                                                  NUmodes, false);
+            coeffL2U.transposeInPlace();
+            bias_inp  = coeffL2U.colwise().minCoeff();
+            scale_inp = coeffL2U.colwise().maxCoeff() - coeffL2U.colwise().minCoeff();
+            bias_out  = coeffL2Nut.colwise().minCoeff();
+            scale_out = coeffL2Nut.colwise().maxCoeff() - coeffL2Nut.colwise().minCoeff();
+
+            for (unsigned int i = 0; i < coeffL2U.rows(); i++)
+            {
+                coeffL2U.row(i) = (coeffL2U.row(i).array() - bias_inp.array()).array()
+                                  / scale_inp.array();
+            }
+
+            for (unsigned int i = 0; i < coeffL2Nut.rows(); i++)
+            {
+                coeffL2Nut.row(i) = (coeffL2Nut.row(i).array() - bias_out.array()).array()
+                                    / scale_out.array();
+            }
+
+            coeffL2U_tensor = eigenMatrix2torchTensor(coeffL2U);
+            coeffL2Nut_tensor = eigenMatrix2torchTensor(coeffL2Nut);
+            Net->push_back(torch::nn::Linear(NUmodes, 128));
+            Net->push_back(torch::nn::ReLU());
+            Net->push_back(torch::nn::Linear(128, 64));
+            Net->push_back(torch::nn::ReLU());
+            Net->push_back(torch::nn::Linear(64, NNutModes));
+            optimizer = new torch::optim::Adam(Net->parameters(),
+                                               torch::optim::AdamOptions(2e-2));
+            int epochs = 10000;
+
+            for (int64_t epoch = 1; epoch <= epochs; ++epoch)
+            {
+                std::cerr << epoch << std::endl;
+                Net->zero_grad();
+                torch::Tensor y_r = Net->forward(coeffL2U_tensor);
+                torch::Tensor d_loss_real = torch::nn::functional::mse_loss(y_r,
+                                            coeffL2Nut_tensor);
+                std::cout << d_loss_real.item<float>() << std::endl;
+                d_loss_real.backward();
+                optimizer->step();
+            }
+
+            mkDir("./ITHACAoutput/Offline/NN");
+            torch::save(Net, "./ITHACAoutput/Offline/NN/Net.pt");
+            ITHACAstream::SaveDenseMatrix(bias_inp, "./ITHACAoutput/Offline/NN/",
+                                          "bias_inp");
+            ITHACAstream::SaveDenseMatrix(scale_inp, "./ITHACAoutput/Offline/NN/",
+                                          "scale_inp");
+            ITHACAstream::SaveDenseMatrix(bias_out, "./ITHACAoutput/Offline/NN/",
+                                          "bias_out");
+            ITHACAstream::SaveDenseMatrix(scale_out, "./ITHACAoutput/Offline/NN/",
+                                          "scale_out");
+        }
+
+        else
+        {
+            std::cerr << "File: SteadyNSSimple.C, Line: 261"<< std::endl;
+            Net->push_back(torch::nn::Linear(NUmodes, 128));
+            Net->push_back(torch::nn::ReLU());
+            Net->push_back(torch::nn::Linear(128, 64));
+            Net->push_back(torch::nn::ReLU());
+            Net->push_back(torch::nn::Linear(64, NNutModes));
+            torch::load(Net, "./ITHACAoutput/Offline/NN/Net.pt");
+
+            for (auto& p : Net->named_parameters())
+            {
+                // Access key.
+                std::cout << p.key() << std::endl;
+                // Access value.
+                std::cout << p.value() << std::endl;
+            }
+
+            ITHACAstream::ReadDenseMatrix(bias_inp, "./ITHACAoutput/Offline/NN/",
+                                          "bias_inp");
+            ITHACAstream::ReadDenseMatrix(scale_inp, "./ITHACAoutput/Offline/NN/",
+                                          "scale_inp");
+            ITHACAstream::ReadDenseMatrix(bias_out, "./ITHACAoutput/Offline/NN/",
+                                          "bias_out");
+            ITHACAstream::ReadDenseMatrix(scale_out, "./ITHACAoutput/Offline/NN/",
+                                          "scale_out");
+        }
+    }
+
+    Eigen::MatrixXd evalNet(Eigen::MatrixXd a)
+    {
+        a.transposeInPlace();
+        a = (a.array() - bias_inp.array()) / scale_inp.array();
+        torch::Tensor aTensor = eigenMatrix2torchTensor(a);
+        torch::Tensor out = Net->forward(aTensor);
+        Eigen::MatrixXd g = torchTensor2eigenMatrix<double>(out);
+        g = g.array() * scale_out.array() + bias_out.array();
+        g.transposeInPlace();
+        return g;
+    }
+};
+
+class reducedSimpleSteadyNN : public reducedSimpleSteadyNS
+{
+    public:
+    /// Constructor
+    explicit reducedSimpleSteadyNN(SteadyNSSimpleNN& FOMproblem)
+        :
+        problem(&FOMproblem)
+        {}
+
+        /// Full problem.
+        SteadyNSSimpleNN* problem;    
+
+    void SolveOnline_Simple(scalar mu_now,
+        int NmodesUproj, int NmodesPproj, int NmodesNut, int NmodesSup, word Folder)
+    {
+        //ULmodes.resize(0);
+        // for (int i = 0; i < problem->inletIndex.rows(); i++)
+        // {
+        //     ULmodes.append(problem->liftfield[i]);
+        // }
+        // for (int i = 0; i < NmodesUproj; i++)
+        // {
+        //     ULmodes.append(problem->Umodes.toPtrList()[i]);
+        // }
+        // for (int i = 0; i < NmodesSup; i++)
+        // {
+        //     ULmodes.append(problem->supmodes.toPtrList()[i]);
+        // }
+        counter++;
+        scalar UprojN;
+        scalar PprojN;
+
+        if (NmodesUproj == 0)
+        {
+            UprojN = problem->Umodes.size();
+        }
+
+        else
+        {
+            UprojN = NmodesUproj + NmodesSup;
+        }
+
+        if (NmodesPproj == 0)
+        {
+            PprojN = problem->Pmodes.size();
+        }
+
+        else
+        {
+            PprojN = NmodesPproj;
+        }
+
+        if (NmodesNut == 0)
+        {
+            NmodesNut = problem->nutModes.size();
+        }
+
+        Eigen::VectorXd uresidualOld = Eigen::VectorXd::Zero(UprojN);
+        Eigen::VectorXd presidualOld = Eigen::VectorXd::Zero(PprojN);
+        Eigen::VectorXd uresidual = Eigen::VectorXd::Zero(UprojN);
+        Eigen::VectorXd presidual = Eigen::VectorXd::Zero(PprojN);
+        scalar U_norm_res(1);
+        scalar P_norm_res(1);
+        Eigen::MatrixXd a = Eigen::VectorXd::Zero(UprojN);
+        Eigen::MatrixXd b = Eigen::VectorXd::Zero(PprojN);
+        //a(0) = vel_now(0, 0);
+        //a(0) = 1;
+        float residualJumpLim =
+            problem->para->ITHACAdict->lookupOrDefault<float>("residualJumpLim", 1e-5);
+        float normalizedResidualLim =
+            problem->para->ITHACAdict->lookupOrDefault<float>("normalizedResidualLim",
+                    1e-5);
+        scalar residual_jump(1 + residualJumpLim);
+        //problem->restart();
+        volScalarField& P = problem->_p();
+        volVectorField& U = problem->_U();
+        Eigen::VectorXd a0 = ITHACAutilities::getCoeffs(U, problem->Umodes, 0, false);
+        a(0) = a0(0);
+        fvMesh& mesh = problem->_mesh();
+        Time& runTime = problem->_runTime();
+        P.rename("p");
+        surfaceScalarField& phi(problem->_phi());
+        // ULmodes.reconstruct(U, a, "U");
+        problem->Umodes.reconstruct(U, a, "U");
+        //problem->Pmodes.reconstruct(P, b, "p");
+        phi = fvc::flux(U);
+        int iter = 0;
+        simpleControl& simple = problem->_simple();
+        std::cerr << "File: ReducedSimpleSteadyNS.C, Line: 142" << std::endl;
+
+        if (ITHACAutilities::isTurbulent())
+        {
+            Eigen::MatrixXd nutCoeff = problem->evalNet(a);
+            // nutCoeff.resize(NmodesNut, 1);
+            // for (int i = 0; i < NmodesNut; i++)
+            // {
+            //     Eigen::MatrixXd muEval;
+            //     muEval.resize(1, 1);
+            //     muEval(0, 0) = mu_now;
+            //     nutCoeff(i, 0) = problem->rbfSplines[i]->eval(muEval);
+            // }
+            volScalarField& nut = const_cast<volScalarField&>
+                                  (problem->_mesh().lookupObject<volScalarField>("nut"));
+            problem->nutModes.reconstruct(nut, nutCoeff, "nut");
+            ITHACAstream::exportSolution(nut, name(counter), Folder);
+        }
+
+        PtrList<volVectorField> gradModP;
+
+        for (label i = 0; i < NmodesPproj; i++)
+        {
+            gradModP.append(fvc::grad(problem->Pmodes[i]));
+        }
+
+        projGradModP = (problem->Umodes).project(gradModP, NmodesUproj);
+        PtrList<fvVectorMatrix> UeqnList;
+
+        while ((residual_jump > residualJumpLim
+                || std::max(U_norm_res, P_norm_res) > normalizedResidualLim) &&
+                iter < maxIterOn)
+        {
+            iter++;
+            std::cout << iter << std::endl;
+    #if OFVER == 6
+            simple.loop(runTime);
+    #else
+            simple.loop();
+    #endif
+            volScalarField nueff = problem->turbulence->nuEff();
+            vector v(1, 0, 0);
+            ITHACAutilities::assignBC(U, 0, v);
+            // ITHACAutilities::assignBC(phi,0,0.0);
+
+            if (ITHACAutilities::isTurbulent())
+            {
+                Eigen::MatrixXd nutCoeff = problem->evalNet(a);
+                // nutCoeff.resize(NmodesNut, 1);
+                // for (int i = 0; i < NmodesNut; i++)
+                // {
+                //     Eigen::MatrixXd muEval;
+                //     muEval.resize(1, 1);
+                //     muEval(0, 0) = mu_now;
+                //     nutCoeff(i, 0) = problem->rbfSplines[i]->eval(muEval);
+                // }
+                volScalarField& nut = const_cast<volScalarField&>
+                                      (problem->_mesh().lookupObject<volScalarField>("nut"));
+                problem->nutModes.reconstruct(nut, nutCoeff, "nut");
+                ITHACAstream::exportSolution(nut, name(counter), Folder);
+            }
+
+            fvVectorMatrix UEqn
+            (
+                fvm::div(phi, U)
+                - fvm::laplacian(nueff, U)
+                - fvc::div(nueff * dev2(T(fvc::grad(U))))
+            );
+            //List<List<Eigen::MatrixXd>> RedLinSysUL;
+            UEqn.relax();
+            //UeqnList.resize(0);
+            // for (label i = 0; i < problem->liftfield.size(); i++)
+            // {
+            //     surfaceScalarField phi(problem->_phi());
+            //     phi = fvc::flux(problem->liftfield[i]);
+            //     fvVectorMatrix UEqn2
+            //     (
+            //         fvm::div(phi, problem->liftfield[i])
+            //         - fvm::laplacian(nueff, problem->liftfield[i])
+            //         - fvc::div(nueff * dev2(T(fvc::grad(problem->liftfield[i]))))
+            //     );
+            //     UEqn2.relax();
+            //     RedLinSysUL.append(problem->Umodes.project(UEqn, UprojN));
+            //     UeqnList.append(UEqn2);
+            // }
+            List<Eigen::MatrixXd> RedLinSysU = problem->Umodes.project(UEqn, UprojN);
+            RedLinSysU[1] = RedLinSysU[1] - projGradModP * b;
+            // for (unsigned int i = 0; i < RedLinSysUL.size(); i++)
+            //  {
+            //     RedLinSysU[1] += RedLinSysUL[i][1];
+            // }
+            a = reducedProblem::solveLinearSys(RedLinSysU, a, uresidual);
+            problem->Umodes.reconstruct(U, a, "U");
+            ITHACAutilities::assignBC(U, 0, v);
+            // U = U + problem->liftfield[0];
+            // Info << U << endl;
+            // exit(0);
+            //volScalarField A1 = UEqn.A();
+            //volScalarField A2 = UeqnList[0].A();
+            //volScalarField A = A1;//+A2;//+UeqnList[0].A();
+            //volVectorField H = UEqn.H();//+UeqnList[0].H();
+            //volScalarField H1 = UEqn.H1();//+UeqnList[0].H1();
+            // Info << A << endl;
+            // Info << H << endl;
+            // exit(0);
+            volScalarField rAU(1.0 / UEqn.A());
+            volVectorField HbyA(constrainHbyA(1.0 / UEqn.A() * UEqn.H(), U, P));
+            surfaceScalarField phiHbyA("phiHbyA", fvc::flux(HbyA));
+            adjustPhi(phiHbyA, U, P);
+            tmp<volScalarField> rAtU(rAU);
+
+            if (simple.consistent())
+            {
+                rAtU = 1.0 / (1.0 / rAU - UEqn.H1());
+                phiHbyA +=
+                    fvc::interpolate(rAtU() - rAU) * fvc::snGrad(P) * mesh.magSf();
+                HbyA -= (rAU - rAtU()) * fvc::grad(P);
+            }
+
+            List<Eigen::MatrixXd> RedLinSysP;
+
+            while (simple.correctNonOrthogonal())
+            {
+                fvScalarMatrix pEqn
+                (
+                    fvm::laplacian(rAtU(), P) == fvc::div(phiHbyA)
+                );
+                RedLinSysP = problem->Pmodes.project(pEqn, PprojN);
+                b = reducedProblem::solveLinearSys(RedLinSysP, b, presidual);
+                problem->Pmodes.reconstruct(P, b, "p");
+
+                if (simple.finalNonOrthogonalIter())
+                {
+                    phi = phiHbyA - pEqn.flux();
+                }
+            }
+
+            P.relax();
+            U = HbyA - rAtU() * fvc::grad(P);
+            U.correctBoundaryConditions();
+            uresidualOld = uresidualOld - uresidual;
+            presidualOld = presidualOld - presidual;
+            uresidualOld = uresidualOld.cwiseAbs();
+            presidualOld = presidualOld.cwiseAbs();
+            residual_jump = std::max(uresidualOld.sum(), presidualOld.sum());
+            uresidualOld = uresidual;
+            presidualOld = presidual;
+            uresidual = uresidual.cwiseAbs();
+            presidual = presidual.cwiseAbs();
+            U_norm_res = uresidual.sum() / (RedLinSysU[1].cwiseAbs()).sum();
+            P_norm_res = presidual.sum() / (RedLinSysP[1].cwiseAbs()).sum();
+
+            if (problem->para->debug)
+            {
+                std::cout << "Residual jump = " << residual_jump << std::endl;
+                std::cout << "Normalized residual = " << std::max(U_norm_res,
+                          P_norm_res) << std::endl;
+                std::cout << "Final normalized residual for velocity: " << U_norm_res <<
+                          std::endl;
+                std::cout << "Final normalized residual for pressure: " << P_norm_res <<
+                          std::endl;
+            }
+
+            //problem->turbulence->correct();
+        }
+
+        std::cout << "Solution " << counter << " converged in " << iter <<
+                  " iterations." << std::endl;
+        std::cout << "Final normalized residual for velocity: " << U_norm_res <<
+                  std::endl;
+        std::cout << "Final normalized residual for pressure: " << P_norm_res <<
+                  std::endl;
+        problem->Umodes.reconstruct(U, a, "Uaux");
+        //P.rename("Paux");
+        problem->Pmodes.reconstruct(P, b, "Paux");
+        ITHACAstream::exportSolution(U, name(counter), Folder);
+        ITHACAstream::exportSolution(P, name(counter), Folder);
+        runTime.setTime(runTime.startTime(), 0);
+    }
+};
+
+
+class tutorial19 : public SteadyNSSimpleNN
 {
     public:
         /// Constructor
         explicit tutorial19(int argc, char* argv[])
             :
-            SteadyNSSimple(argc, argv),
+            SteadyNSSimpleNN(argc, argv),
             U(_U()),
             p(_p()),
             phi(_phi()),
@@ -77,7 +479,7 @@ class tutorial19 : public SteadyNSSimple
                 ITHACAstream::readMiddleFields(Ufield, U, folder);
                 ITHACAstream::readMiddleFields(Pfield, p, folder);
                 auto nut = _mesh().lookupObject<volScalarField>("nut");
-                ITHACAstream::readConvergedFields(nutFields, nut, folder);
+                ITHACAstream::readMiddleFields(nutFields, nut, folder);
             }
 
             else if (offline)
@@ -209,6 +611,7 @@ int main(int argc, char* argv[])
     // Homogenize the snapshots
     // example.computeLift(example.Ufield, example.liftfield, example.Uomfield);
     // Move the mesh to a middle configuration
+
     List<vector> points2Move;
     labelList boxIndices = ITHACAutilities::getIndicesFromBox(example._mesh(),
                            movPat, Box,
@@ -236,7 +639,8 @@ int main(int argc, char* argv[])
         ITHACAPOD::getModes(example.nutFields, example.nutModes, "nut",
                             example.podex, 0, 0, example.NNutModesOut);
         // Create the RBF for turbulence
-        example.getTurbRBF(example.NNutModes);
+        example.getTurbNN();
+        //example.getTurbRBF(example.NNutModes);
     }
 
     for (int i = 0; i < example.inletIndex.rows(); i++)
@@ -270,7 +674,7 @@ int main(int argc, char* argv[])
 
     example._mesh().movePoints(example.point0);
     // Create the reduced object
-    reducedSimpleSteadyNS reduced(example);
+    reducedSimpleSteadyNN reduced(example);
     PtrList<volVectorField> U_rec_list;
     PtrList<volScalarField> P_rec_list;
     // Reads inlet volocities boundary conditions.
@@ -304,6 +708,7 @@ int main(int argc, char* argv[])
             example._mesh().movePoints(curXV);
             ITHACAstream::writePoints(example._mesh().points(),
                                       "./ITHACAoutput/Reconstruct/", name(k + 1) + "/polyMesh/");
+            std::cerr << "debug point 1" << std::endl;
             reduced.solveOnline_Simple(mu_now, example.NUmodes, example.NPmodes,
                                        example.NNutModes);
         }
