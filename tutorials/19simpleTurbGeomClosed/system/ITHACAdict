@@ -38,7 +38,7 @@ tolerance 1e-5;
 
 // Maximum number of iterations
 maxIter 3000;
-maxIterOn 8000;
+maxIterOn 1000;
 
 // Reduced simple cicle parameters
 residualJumpLim 1e-8;
