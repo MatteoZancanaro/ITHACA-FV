@@ -519,7 +519,7 @@ int main(int argc, char* argv[])
 
     else
     {
-        example.mu  = Eigen::VectorXd::LinSpaced(50, 0, 50);
+        example.mu  = Eigen::VectorXd::LinSpaced(50, 0, 75);
         ITHACAstream::exportMatrix(example.mu, "angOff", "eigen", "./");
     }
 
@@ -533,7 +533,7 @@ int main(int argc, char* argv[])
 
     else
     {
-        angOn = Eigen::VectorXd::LinSpaced(20, 1, 48);
+        angOn = Eigen::VectorXd::LinSpaced(20, 5, 70);
         ITHACAstream::exportMatrix(angOn, "angOn", "eigen", "./");
     }
 

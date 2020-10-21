@@ -279,7 +279,7 @@ class reducedSimpleSteadyNN : public reducedSimpleSteadyNS
                     iter < maxIterOn)
             {
                 iter++;
-                std::cout << iter << std::endl;
+                std::cout << "Iteration " << iter << std::endl;
 #if OFVER == 6
                 simple.loop(runTime);
 #else
