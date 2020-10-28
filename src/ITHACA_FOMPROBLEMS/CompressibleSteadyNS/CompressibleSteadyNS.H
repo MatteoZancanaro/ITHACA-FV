@@ -83,7 +83,7 @@ class CompressibleSteadyNS: public SteadyNSTurb
         /// the Parameters folder.
         ///
         //void truthSolve(List<scalar> mu_now);
-        void truthSolve();
+        void truthSolve(word folder);
 
         // Momuntum equation terms
         fvVectorMatrix getUmatrix(volVectorField& U);//, Vector<double>& uresidual_v);
@@ -113,6 +113,10 @@ class CompressibleSteadyNS: public SteadyNSTurb
         ///
         void changeViscosity(double mu_new);
 
+        /// set all the variables back to the values into the 0 folder
+        void restart();
+
+
         /// Initialization for the full velocity linear system.
         //fvVectorMatrix* Ueqn_global;
 
@@ -136,7 +140,7 @@ class CompressibleSteadyNS: public SteadyNSTurb
         PtrList<volScalarField> Efield;
 
         /// List of pointers used to form the emergy modes
-        Modes<scalar> Emodes;
+        volScalarModes Emodes;
 
         autoPtr<fvVectorMatrix> Ueqn_global;
 
@@ -155,6 +159,16 @@ class CompressibleSteadyNS: public SteadyNSTurb
 
         /// Number of maximum iterations to be done for the computation of the truth solution
         scalar maxIter;
+
+        /// Distancing between intermediate steps (for turbulent case only)
+        label middleStep;
+
+        /// Counter to check if the middleStep has been reached or not (for turbulent case only)
+        label saver;
+
+        /// Counter to save intermediate steps in the correct folder (for turbulent case only)
+        label folderN;
+
 
 
 

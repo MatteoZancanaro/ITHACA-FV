@@ -79,7 +79,7 @@ CompressibleSteadyNS::CompressibleSteadyNS(int argc, char* argv[])
             IOobject::NO_WRITE
         )
     );
-    para = new ITHACAparameters;
+    para = ITHACAparameters::getInstance(mesh, runTime);
     offline = ITHACAutilities::check_off();
     podex = ITHACAutilities::check_pod();
 }
@@ -89,7 +89,7 @@ CompressibleSteadyNS::CompressibleSteadyNS(int argc, char* argv[])
 
 // Method to perform a truthSolve
 
-void CompressibleSteadyNS::truthSolve()
+void CompressibleSteadyNS::truthSolve(word folder)
 {
     Time& runTime = _runTime();
     volScalarField& E = pThermo().he();
@@ -101,10 +101,10 @@ void CompressibleSteadyNS::truthSolve()
     //Info << thermo.mu() << endl;
     //Info << thermo.nu() << endl;
 #include "NLsolve.H"
-    ITHACAstream::exportSolution(U, name(counter), "./ITHACAoutput/Offline/");
-    ITHACAstream::exportSolution(p, name(counter), "./ITHACAoutput/Offline/");
-    ITHACAstream::exportSolution(E, name(counter), "./ITHACAoutput/Offline/");
-    ITHACAstream::exportSolution(_nut, name(counter), "./ITHACAoutput/Offline/");
+    ITHACAstream::exportSolution(U, name(counter), folder);
+    ITHACAstream::exportSolution(p, name(counter), folder);
+    ITHACAstream::exportSolution(E, name(counter), folder);
+    ITHACAstream::exportSolution(_nut, name(counter), folder);
     Ufield.append(U);
     Pfield.append(p);
     Efield.append(E);
@@ -263,75 +263,122 @@ fvScalarMatrix CompressibleSteadyNS::getPmatrix(volScalarField& p)
     return Peqn_global();
 }
 
-// fvScalarMatrix CompressibleSteadyNS::getPmatrix(volVectorField& U,
-//         volScalarField& p, scalar& presidual, fvVectorMatrix& Ueqn)
-// {
-//     surfaceScalarField& phi = _phi();
-//     volScalarField& rho = _rho();
-//     fv::options& fvOptions = _fvOptions();
-//     simpleControl& simple = _simple();
-//     fluidThermo& thermo = pThermo();
-//     volScalarField& psi = _psi();
-//     pressureControl& pressureControl = _pressureControl();
-//     Time& runTime = _runTime();
-//     fvMesh& mesh = _mesh();
-//     dimensionedScalar& initialMass = _initialMass();
-//     bool closedVolume = false;
+void CompressibleSteadyNS::restart()
+{
+    _runTime().objectRegistry::clear();
+    _mesh().objectRegistry::clear();
+    // _mesh.clear();
+    // _runTime.clear();
+    _simple.clear();
+    _p.clear();
+    _U.clear();
+    _phi.clear();
+    turbulence.clear();
+    _fvOptions.clear();
+    pThermo.clear();
+    argList& args = _args();
+    Time& runTime = _runTime();
+    runTime.setTime(0, 1);
+    Foam::fvMesh& mesh = _mesh();
+    _simple = autoPtr<simpleControl>
+              (
+                  new simpleControl
+                  (
+                      mesh
+                  )
+              );
+    simpleControl& simple = _simple();
+    pThermo = autoPtr<fluidThermo>
+          (
+              fluidThermo::New(mesh)
+          );
 
-//     // Update the pressure BCs to ensure flux consistency
-//     constrainPressure(p, rho, U, getPhiHbyA(Ueqn, U, p), getRhorAUf(Ueqn));
-
-//     closedVolume = adjustPhi(phiHbyA(), U, p);
-//     while (simple.correctNonOrthogonal())
-//     {
-//         // Peqn_global.reset(new fvScalarMatrix(
-//         //                       fvc::div(phiHbyA)
-//         //                       - fvm::laplacian(rhorAUf, p)
-//         //                       ==
-//         //                       fvOptions(psi, p, rho.name())
-//         //                   ));
-//         Peqn_global.reset(new fvScalarMatrix(
-//                               getDivPhiHbyA()
-//                               - getPoissonTerm(p)
-//                               ==
-//                               fvOptions(psi, p, rho.name())
-//                           ));
-//         Peqn_global().setReference
-//         (
-//             pressureControl.refCell(),
-//             pressureControl.refValue()
-//         );
-//         presidual = Peqn_global().solve().initialResidual();
-
-//         if (simple.finalNonOrthogonalIter())
-//         {
-//             phi = phiHbyA() + Peqn_global().flux();
-//         }
-//     }
-
-// #include "incompressible/continuityErrs.H"
-//     // Explicitly relax pressure for momentum corrector
-//     p.relax();
-//     U = HbyA() - (1.0 / Ueqn.A()) * fvc::grad(p);//rAU * fvc::grad(p);
-//     U.correctBoundaryConditions();
-//     fvOptions.correct(U);
-//     bool pLimited = pressureControl.limit(p);
-
-//     // For closed-volume cases adjust the pressure and density levels
-//     // to obey overall mass continuity
-//     if (closedVolume)
-//     {
-//         p += (initialMass - fvc::domainIntegrate(psi * p))
-//              / fvc::domainIntegrate(psi);
-//     }
-
-//     if (pLimited || closedVolume)
-//     {
-//         p.correctBoundaryConditions();
-//     }
-
-//     rho = thermo.rho(); // Here rho is calculated as p*psi = p/(R*T)
-//     rho.relax();
-
-//     return Peqn_global();
-// }
+    fluidThermo& thermo = pThermo();
+    Info << "ReReading field p\n" << endl;
+    _p = autoPtr<volScalarField>
+         (
+             new volScalarField
+             (
+                 IOobject
+                 (
+                     "p",
+                     runTime.timeName(),
+                     mesh,
+                     IOobject::MUST_READ,
+                     IOobject::AUTO_WRITE
+                 ),
+                 mesh
+             )
+         );
+    volScalarField& p = _p();
+    Info << "ReReading field U\n" << endl;
+    _U = autoPtr<volVectorField>
+         (
+             new volVectorField
+             (
+                 IOobject
+                 (
+                     "U",
+                     runTime.timeName(),
+                     mesh,
+                     IOobject::MUST_READ,
+                     IOobject::AUTO_WRITE
+                 ),
+                 mesh
+             )
+         );
+    volVectorField& U = _U();
+    Info << "ReReading field rho\n" << endl;
+    _rho = autoPtr<volScalarField>
+       (
+           new volScalarField
+           (
+               IOobject
+               (
+                   "rho",
+                   runTime.timeName(),
+                   mesh,
+                   IOobject::READ_IF_PRESENT,
+                   IOobject::AUTO_WRITE
+               ),
+               thermo.rho()
+           )
+       );
+    volScalarField& rho = _rho();
+    Info << "ReReading/calculating face flux field phi\n" << endl;
+    _phi = autoPtr<surfaceScalarField>
+           (
+               new surfaceScalarField
+               (
+                   IOobject
+                   (
+                       "phi",
+                       runTime.timeName(),
+                       mesh,
+                       IOobject::READ_IF_PRESENT,
+                       IOobject::AUTO_WRITE
+                   ),
+                   linearInterpolate(rho* U) & mesh.Sf()
+               )
+           );
+    surfaceScalarField& phi = _phi();
+    pRefCell = 0;
+    pRefValue = 0.0;
+    setRefCell(p, simple.dict(), pRefCell, pRefValue);
+    turbulence = autoPtr<compressible::turbulenceModel>
+             (
+                 compressible::turbulenceModel::New
+                 (
+                     rho,
+                     U,
+                     phi,
+                     thermo
+                 )
+             );
+    _MRF = autoPtr<IOMRFZoneList>
+           (
+               new IOMRFZoneList(mesh)
+           );
+    _fvOptions = autoPtr<fv::options>(new fv::options(mesh));
+    turbulence->validate();
+}

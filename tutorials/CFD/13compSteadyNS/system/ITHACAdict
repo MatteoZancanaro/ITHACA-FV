@@ -41,10 +41,13 @@ exportPython 1;
 exportMatlab 1;
 exportTxt 1;
 
-
-
 // Inlet boundary conditions velocities.
 online_velocities vel.txt;
 
+// More info for debug
+debug 0;
+
+// Interval between intermediate step to be exported
+middleStep 100;
 
 

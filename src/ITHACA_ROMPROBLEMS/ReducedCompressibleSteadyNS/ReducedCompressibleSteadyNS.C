@@ -93,6 +93,8 @@ void ReducedCompressibleSteadyNS::projectReducedOperators(int NmodesUproj, int N
 void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
         int NmodesUproj, int NmodesPproj, int NmodesEproj)
 {
+    counter++;
+
     // Reisuals initialization
     scalar residualNorm(1);
     scalar residualJump(1);
@@ -106,16 +108,16 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
     Eigen::VectorXd pResidual(Eigen::Map<Eigen::VectorXd>(pResidualOld.data(),
                               NmodesPproj));
     // Parameters definition
-    ITHACAparameters para;
     float residualJumpLim =
-        para.ITHACAdict->lookupOrDefault<float>("residualJumpLim", 1e-5);
+        problem->para->ITHACAdict->lookupOrDefault<float>("residualJumpLim", 1e-5);
     float normalizedResidualLim =
-        para.ITHACAdict->lookupOrDefault<float>("normalizedResidualLim", 1e-5);
+        problem->para->ITHACAdict->lookupOrDefault<float>("normalizedResidualLim", 1e-5);
     int maxIter =
-        para.ITHACAdict->lookupOrDefault<float>("maxIter", 2000);
+        problem->para->ITHACAdict->lookupOrDefault<float>("maxIter", 2000);
     bool closedVolume = false;
     label csolve = 0;
     // Full variables initialization
+
     volVectorField& U = problem->_U();
     volScalarField& P = problem->_p();
     volScalarField& E = problem->pThermo->he();
@@ -142,6 +144,11 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
         uResidualOld = uResidual;
         eResidualOld = eResidual;
         pResidualOld = pResidual;
+        Eigen::MatrixXd u0 = Eigen::VectorXd::Zero(NmodesUproj);
+        u0 = ITHACAutilities::getCoeffs(U, ULmodes, NmodesUproj, true);
+        u(0) = u0(0);
+        ULmodes.reconstruct(U, u, "U");
+        
         //Momentum equation phase
         List<Eigen::MatrixXd> RedLinSysU;
         if (problem->_simple().momentumPredictor())
@@ -152,8 +159,8 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
             Eigen::MatrixXd projGradP = projGradModP * p;
             RedLinSysU[1] = RedLinSysU[1] - projGradP;
             u = reducedProblem::solveLinearSys(RedLinSysU, u, uResidual, vel_now, "bdcSvd");
-            //U = ULmodes.reconstruct(u, "Ur");
-            solve(problem->Ueqn_global() == -problem->getGradP(P)); //For debug purposes only, second part only useful when using uEqn_global==-getGradP
+            ULmodes.reconstruct(U, u, "U");
+            //solve(problem->Ueqn_global() == -problem->getGradP(P)); //For debug purposes only, second part only useful when using uEqn_global==-getGradP
             fvOptions.correct(U);
         }
         //Energy equation phase
@@ -161,8 +168,8 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
         List<Eigen::MatrixXd> RedLinSysE = problem->Emodes.project(
                                                problem->Eeqn_global(), NmodesEproj);
         e = reducedProblem::solveLinearSys(RedLinSysE, e, eResidual);
-        //E = problem->Emodes.reconstruct(e, "Er");
-        problem->Eeqn_global().solve(); //For debug purposes only
+        problem->Emodes.reconstruct(E, e, "e");
+        //problem->Eeqn_global().solve(); //For debug purposes only
         fvOptions.correct(thermo.he());
         thermo.correct(); // Here are calculated both temperature and density based on P,U and he.
         // Pressure equation phase
@@ -177,15 +184,14 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
             problem->getPmatrix(P);
             RedLinSysP = problem->Pmodes.project(problem->Peqn_global(), NmodesPproj);
             p = reducedProblem::solveLinearSys(RedLinSysP, p, pResidual);
-            //P = problem->Pmodes.reconstruct(p, "Pr");
-            problem->Peqn_global().solve(); //For debug purposes only
+            problem->Pmodes.reconstruct(P, p, "p");
+            //problem->Peqn_global().solve(); //For debug purposes only
 
             if (problem->_simple().finalNonOrthogonalIter())
             {
                 phi = problem->phiHbyA() + problem->Peqn_global().flux();
             }
         }
-
 #include "incompressible/continuityErrs.H"
         P.relax();// Explicitly relax pressure for momentum corrector
         U = problem->HbyA() - (1.0 / problem->Ueqn_global().A()) * problem->getGradP(P);
@@ -207,12 +213,18 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
 
         rho = thermo.rho(); // Here rho is calculated as p*psi = p/(R*T)
         rho.relax();
+
+        if (problem->para->debug)
+        {
         std::cout << "Ures = " << (uResidual.cwiseAbs()).sum() / (RedLinSysU[1].cwiseAbs()).sum() << std::endl;
         std::cout << "Eres = " << (eResidual.cwiseAbs()).sum() / (RedLinSysE[1].cwiseAbs()).sum() << std::endl;
         std::cout << "Pres = " << (pResidual.cwiseAbs()).sum() / (RedLinSysP[1].cwiseAbs()).sum() << std::endl;
+        
         std::cout << "U = " << u << std::endl;
         std::cout << "E = " << e << std::endl;
         std::cout << "P = " << p << std::endl;
+        }
+
         residualNorm = max(max((uResidual.cwiseAbs()).sum() /
                                (RedLinSysU[1].cwiseAbs()).sum(),
                                (pResidual.cwiseAbs()).sum() / (RedLinSysP[1].cwiseAbs()).sum()),
@@ -220,12 +232,21 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
         residualJump = max(max(((uResidual - uResidualOld).cwiseAbs()).sum() / (RedLinSysU[1].cwiseAbs()).sum(),
                                ((pResidual - pResidualOld).cwiseAbs()).sum() / (RedLinSysP[1].cwiseAbs()).sum()),
                            ((eResidual - eResidualOld).cwiseAbs()).sum() / (RedLinSysE[1].cwiseAbs()).sum());
-        std::cout << residualNorm << std::endl;
-        std::cout << residualJump << std::endl;
+        
+        std::cout << "Normalized residual = " << residualNorm << std::endl;
+        std::cout << "Residual jump = " << residualJump << std::endl;
         problem->turbulence->correct();
     }
-    label k = 1;
-    ITHACAstream::exportSolution(U, "1", "./ITHACAoutput/Online/");
-    ITHACAstream::exportSolution(P, "1", "./ITHACAoutput/Online/");
-    ITHACAstream::exportSolution(E, "1", "./ITHACAoutput/Online/");
+
+    std::cout << "Solution " << counter << " converged in " << csolve << " iterations." << std::endl;
+    // std::cout << "Final normalized residual for velocity: " << (uResidual.cwiseAbs()).sum() / (RedLinSysU[1].cwiseAbs()).sum() << std::endl;
+    // std::cout << "Final normalized residual for pressure: " << (pResidual.cwiseAbs()).sum() / (RedLinSysP[1].cwiseAbs()).sum() << std::endl;
+    // std::cout << "Final normalized residual for energy: " << (eResidual.cwiseAbs()).sum() / (RedLinSysE[1].cwiseAbs()).sum() << std::endl;
+
+    U.rename("Ur");
+    P.rename("Pr");
+    E.rename("Er");
+    ITHACAstream::exportSolution(U, name(counter), "./ITHACAoutput/Online/");
+    ITHACAstream::exportSolution(P, name(counter), "./ITHACAoutput/Online/");
+    ITHACAstream::exportSolution(E, name(counter), "./ITHACAoutput/Online/");
 }

@@ -55,7 +55,7 @@ public:
     volScalarField& E;
 
     /// Perform an Offline solve
-    void offlineSolve()
+    void offlineSolve(word folder = "./ITHACAoutput/Offline/")
     {
         //Vector<double> inl(0, 0, 0);
         //List<scalar> mu_now(1);
@@ -63,9 +63,9 @@ public:
         // if the offline solution is already performed read the fields
         if (offline)
         {
-            ITHACAstream::read_fields(Ufield, U, "./ITHACAoutput/Offline/");
-            ITHACAstream::read_fields(Pfield, p, "./ITHACAoutput/Offline/");
-            ITHACAstream::read_fields(Efield, E, "./ITHACAoutput/Offline/");
+            ITHACAstream::readMiddleFields(Ufield, U, folder);
+            ITHACAstream::readMiddleFields(Pfield, p, folder);
+            ITHACAstream::readMiddleFields(Efield, E, folder);
             mu_samples = ITHACAstream::readMatrix("./parsOff_mat.txt");
         }
         // else perform offline stage
@@ -81,7 +81,7 @@ public:
                 changeViscosity(mu(i, 0));
                 assignIF(U, Uinl);
                 //truthSolve(mu_now);
-                truthSolve();
+                truthSolve(folder);
             }
         }
     }
@@ -121,13 +121,14 @@ int main(int argc, char* argv[])
     }
 
     // Read some parameters from file
-    ITHACAparameters para;
-    int NmodesUout = para.ITHACAdict->lookupOrDefault<int>("NmodesUout", 15);
-    int NmodesPout = para.ITHACAdict->lookupOrDefault<int>("NmodesPout", 15);
-    int NmodesEout = para.ITHACAdict->lookupOrDefault<int>("NmodesEout", 15);
-    int NmodesUproj = para.ITHACAdict->lookupOrDefault<int>("NmodesUproj", 10);
-    int NmodesPproj = para.ITHACAdict->lookupOrDefault<int>("NmodesPproj", 10);
-    int NmodesEproj = para.ITHACAdict->lookupOrDefault<int>("NmodesEproj", 10);
+    ITHACAparameters* para = ITHACAparameters::getInstance(example._mesh(),
+                             example._runTime());
+    int NmodesUout = para->ITHACAdict->lookupOrDefault<int>("NmodesUout", 15);
+    int NmodesPout = para->ITHACAdict->lookupOrDefault<int>("NmodesPout", 15);
+    int NmodesEout = para->ITHACAdict->lookupOrDefault<int>("NmodesEout", 15);
+    int NmodesUproj = para->ITHACAdict->lookupOrDefault<int>("NmodesUproj", 10);
+    int NmodesPproj = para->ITHACAdict->lookupOrDefault<int>("NmodesPproj", 10);
+    int NmodesEproj = para->ITHACAdict->lookupOrDefault<int>("NmodesEproj", 10);
     //Set the inlet boundaries patch 0 directions x and y
     example.inletIndex.resize(1, 2);
     example.inletIndex(0, 0) = 1;
@@ -140,22 +141,22 @@ int main(int argc, char* argv[])
     // Homogenize the snapshots
     example.computeLift(example.Ufield, example.liftfield, example.Uomfield);
     // Perform POD on velocity and pressure and store the first 10 modes
-    ITHACAPOD::getModes(example.Uomfield, example.Umodes, example.podex, 0, 0,
+    ITHACAPOD::getModes(example.Uomfield, example.Umodes, example._U().name(), example.podex, 0, 0,
                         NmodesUout);
-    ITHACAPOD::getModes(example.Pfield, example.Pmodes, example.podex, 0, 0,
+    ITHACAPOD::getModes(example.Pfield, example.Pmodes, example._p().name(), example.podex, 0, 0,
                         NmodesPout);
-    ITHACAPOD::getModes(example.Efield, example.Emodes, example.podex, 0, 0,
+    ITHACAPOD::getModes(example.Efield, example.Emodes, example._E().name(), example.podex, 0, 0,
                         NmodesEout);
     // Create the reduced object
     ReducedCompressibleSteadyNS reduced(example);
     PtrList<volVectorField> uFull;
     ITHACAstream::read_fields(uFull, example.U, "./ITHACAoutput/Offline/");
-    Eigen::MatrixXd projU = ITHACAutilities::getCoeffsFrobenius(uFull, reduced.ULmodes, 10);
+    Eigen::MatrixXd projU = ITHACAutilities::getCoeffs(uFull, reduced.ULmodes, 10, false);
     //std::cout << projU << std::endl;
-    PtrList<volVectorField> projectedU = ITHACAutilities::reconstruct_from_coeff(reduced.ULmodes, projU, 10);
+    PtrList<volVectorField> projectedU = ITHACAutilities::reconstructFromCoeff(reduced.ULmodes, projU, 10);
     ITHACAstream::exportFields(projectedU, "./ITHACAoutput/Offline/", "projU");
     // Reads inlet volocities boundary conditions.
-    word vel_file(para.ITHACAdict->lookup("online_velocities"));
+    word vel_file(para->ITHACAdict->lookup("online_velocities"));
     Eigen::MatrixXd vel = ITHACAstream::readMatrix(vel_file);
 
     //Perform the online solutions
@@ -167,5 +168,65 @@ int main(int argc, char* argv[])
         reduced.projectReducedOperators(NmodesUproj, NmodesPproj, NmodesEproj);
         reduced.solveOnlineCompressible(mu_now, NmodesUproj, NmodesPproj, NmodesEproj);
     }
+
+    // Error analysis
+    tutorial13 checkOff(argc, argv);
+
+    if (!ITHACAutilities::check_folder("./ITHACAoutput/checkOff"))
+    {
+        std::cerr << "debug point 1" << std::endl;
+        checkOff.restart();
+        std::cerr << "debug point 2" << std::endl;
+        // ITHACAparameters* para = ITHACAparameters::getInstance(checkOff._mesh(),
+        //                          checkOff._runTime());
+        checkOff.offline = false;
+        checkOff.mu = parOn;
+        checkOff.offlineSolve("./ITHACAoutput/checkOff/");
+        checkOff.offline = true;
+    }
+    std::cerr << "debug point 1" << std::endl;
+    PtrList<volVectorField> Ufull;
+    PtrList<volScalarField> Pfull;
+    PtrList<volScalarField> Efull;
+    PtrList<volVectorField> Ured;
+    PtrList<volScalarField> Pred;
+    PtrList<volScalarField> Ered;
+    // volVectorField U("Uaux", checkOff._U());
+    // volScalarField p("Paux", checkOff._p());
+    // volScalarField e("Eaux", checkOff._E());
+    ITHACAstream::read_fields(Ufull, checkOff._U(),
+                                      "./ITHACAoutput/checkOff/");
+    ITHACAstream::read_fields(Pfull, checkOff._p(),
+                                      "./ITHACAoutput/checkOff/");
+    ITHACAstream::read_fields(Efull, checkOff._E(),
+                                      "./ITHACAoutput/checkOff/");
+    ITHACAstream::read_fields(Ured, checkOff._U(), "./ITHACAoutput/Online/");
+    ITHACAstream::read_fields(Pred, checkOff._p(), "./ITHACAoutput/Online/");
+    ITHACAstream::read_fields(Ered, checkOff._E(), "./ITHACAoutput/Online/");
+    Eigen::MatrixXd relErrorU(Ufull.size(), 1);
+    Eigen::MatrixXd relErrorP(Pfull.size(), 1);
+    Eigen::MatrixXd relErrorE(Efull.size(), 1);
+    dimensionedVector U_fs("U_fs", dimVelocity, vector(1, 0, 0));
+
+    for (label k = 0; k < Ufull.size(); k++)
+    {
+        volVectorField errorU = Ufull[k] - Ured[k];
+        volVectorField devU = Ufull[k] - U_fs;
+        volScalarField errorP = Pfull[k] - Pred[k];
+        volScalarField errorE = Efull[k] - Ered[k];
+        relErrorU(k, 0) = ITHACAutilities::frobNorm(errorU) /
+                          ITHACAutilities::frobNorm(devU);
+        relErrorP(k, 0) = ITHACAutilities::frobNorm(errorP) /
+                          ITHACAutilities::frobNorm(Pfull[k]);
+        relErrorE(k, 0) = ITHACAutilities::frobNorm(errorE) /
+                          ITHACAutilities::frobNorm(Efull[k]);
+    }
+
+    ITHACAstream::exportMatrix(relErrorU,
+                               "errorU_" + name(NmodesUproj) + "_" + name(NmodesPproj) + "_" + name(NmodesEproj), "python", ".");
+    ITHACAstream::exportMatrix(relErrorP,
+                               "errorP_" + name(NmodesUproj) + "_" + name(NmodesPproj) + "_" + name(NmodesEproj), "python", ".");
+    ITHACAstream::exportMatrix(relErrorE,
+                               "errorE_" + name(NmodesUproj) + "_" + name(NmodesPproj) + "_" + name(NmodesEproj), "python", ".");
     exit(0);
 }

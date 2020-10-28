@@ -38,7 +38,9 @@ Vector<double> uresidual_v(0, 0, 0);
 scalar presidual = 1;
 
 scalar csolve = 0;
-
+folderN = 0;
+saver = 0;
+middleStep = para->ITHACAdict->lookupOrDefault<label>("middleStep", 20);
 
 // Variable that can be changed
 std::ofstream res_os;
@@ -54,6 +56,9 @@ while (simple.loop(runTime) && residual > tolerance && csolve < maxIter )
 while (simple.loop() && residual > tolerance && csolve < maxIter )
 #endif
 {
+    csolve++;
+    saver++;
+
     Info << "Time = " << runTime.timeName() << nl << endl;
     //Momentum equation phase
     getUmatrix(U);
@@ -119,10 +124,22 @@ while (simple.loop() && residual > tolerance && csolve < maxIter )
     residual = max(max(presidual, uresidual), eresidual);
     Info << "\nResidual: " << residual << endl << endl;
     turbulence->correct();
-    csolve = csolve + 1;
+
     Info << "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
          << "  ClockTime = " << runTime.elapsedClockTime() << " s"
          << nl << endl;
+
+    if (saver == middleStep)
+    {
+        saver = 0;
+        folderN++;
+        ITHACAstream::exportSolution(U, name(folderN), folder + name(counter));
+        ITHACAstream::exportSolution(p, name(folderN), folder + name(counter));
+        ITHACAstream::exportSolution(E, name(folderN), folder + name(counter));
+        Ufield.append(U);
+        Pfield.append(p);
+        Efield.append(E);
+    }
 }
 
 res_os << residual << std::endl;
