@@ -150,50 +150,99 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
         //Momentum equation phase
         List<Eigen::MatrixXd> RedLinSysU;
 
-        problem->getUmatrix(U);
+        //problem->getUmatrix(U);
+        fvVectorMatrix UEqnR
+        (
+        	fvm::div(phi, U) 
+        	- fvc::div((rho * problem->turbulence->nuEff()) * dev2(T(fvc::grad(U)))) 
+        	- fvm::laplacian(rho * problem->turbulence->nuEff(), U) 
+        	==
+        	fvOptions(rho, U)
+        );
+        UEqnR.relax();
+    	fvOptions.constrain(UEqnR);
 
-        RedLinSysU = ULmodes.project(problem->Ueqn_global(), NmodesUproj);
+        //RedLinSysU = ULmodes.project(problem->Ueqn_global(), NmodesUproj);
+        RedLinSysU = ULmodes.project(UEqnR, NmodesUproj);
         Eigen::MatrixXd projGradP = projGradModP * p;
         RedLinSysU[1] = RedLinSysU[1] - projGradP;
         u = reducedProblem::solveLinearSys(RedLinSysU, u, uResidual, vel_now, "bdcSvd");
-        U = ULmodes.reconstruct(u, "Ur");
+        ULmodes.reconstruct(U, u, "U");
         //solve(problem->Ueqn_global() == -problem->getGradP(P)); //For debug purposes only, second part only useful when using uEqn_global==-getGradP
         fvOptions.correct(U);
         
         //Energy equation phase
-        problem->getEmatrix(U, P);
-        List<Eigen::MatrixXd> RedLinSysE = problem->Emodes.project(
-                                               problem->Eeqn_global(), NmodesEproj);
+        //problem->getEmatrix(U, P);
+        fvScalarMatrix EEqnR
+        (
+        	fvm::div(phi, E)
+        	+ fvc::div(phi, volScalarField("Ekp", 0.5 * magSqr(U) + P / rho))
+        	- fvm::laplacian(problem->turbulence->alphaEff(), E)
+        	==
+        	fvOptions(rho, E)
+        );
+        EEqnR.relax();
+    	fvOptions.constrain(EEqnR);
+
+        // List<Eigen::MatrixXd> RedLinSysE = problem->Emodes.project(
+        //                                        problem->Eeqn_global(), NmodesEproj);
+        List<Eigen::MatrixXd> RedLinSysE = problem->Emodes.project(EEqnR, NmodesEproj);
+
         e = reducedProblem::solveLinearSys(RedLinSysE, e, eResidual);
-        E = problem->Emodes.reconstruct(e, "Er");
+        problem->Emodes.reconstruct(E, e, "e");
         //problem->Eeqn_global().solve(); //For debug purposes only
         fvOptions.correct(E);
         thermo.correct(); // Here are calculated both temperature and density based on P,U and he.
         // Pressure equation phase
-        constrainPressure(P, rho, U, problem->getPhiHbyA(problem->Ueqn_global(), U, P),
-                          problem->getRhorAUf(problem->Ueqn_global()));// Update the pressure BCs to ensure flux consistency
-        surfaceScalarField phiHbyACalculated = problem->getPhiHbyA(problem->Ueqn_global(), U, P);
+        // constrainPressure(P, rho, U, problem->getPhiHbyA(problem->Ueqn_global(), U, P),
+        //                   problem->getRhorAUf(problem->Ueqn_global()));// Update the pressure BCs to ensure flux consistency
+        // surfaceScalarField phiHbyACalculated = problem->getPhiHbyA(problem->Ueqn_global(), U, P);
+        constrainPressure(P, rho, U, problem->getPhiHbyA(UEqnR, U, P),
+                          problem->getRhorAUf(UEqnR));// Update the pressure BCs to ensure flux consistency
+        surfaceScalarField phiHbyACalculated = problem->getPhiHbyA(UEqnR, U, P);
         closedVolume = adjustPhi(phiHbyACalculated, U, P);
 
         List<Eigen::MatrixXd> RedLinSysP;
 
         while (problem->_simple().correctNonOrthogonal())
         {
-            problem->getPmatrix(problem->Ueqn_global(), U, P);
-            RedLinSysP = problem->Pmodes.project(problem->Peqn_global(), NmodesPproj);
+            // problem->getPmatrix(problem->Ueqn_global(), U, P);
+            volScalarField rAU(1.0 / UEqnR.A()); // Inverse of the diagonal part of the U equation matrix
+            volVectorField HbyA(constrainHbyA(rAU * UEqnR.H(), U, P)); // H is the extra diagonal part summed to the r.h.s. of the U equation
+            surfaceScalarField phiHbyA("phiHbyA", fvc::interpolate(rho)*fvc::flux(HbyA));
+            surfaceScalarField rhorAUf("rhorAUf", fvc::interpolate(rho * rAU));
+        	fvScalarMatrix PEqnR
+        	(
+        		fvc::div(phiHbyA)
+        		-fvm::laplacian(rhorAUf,P)
+        		==
+                fvOptions(psi, P, rho.name())
+        	);
+        	PEqnR.setReference
+		    (
+		        problem->_pressureControl().refCell(),
+		        problem->_pressureControl().refValue()
+		    );
+
+            // RedLinSysP = problem->Pmodes.project(problem->Peqn_global(), NmodesPproj);
+            RedLinSysP = problem->Pmodes.project(PEqnR, NmodesPproj);
+
             p = reducedProblem::solveLinearSys(RedLinSysP, p, pResidual);
-            P = problem->Pmodes.reconstruct(p, "Pr");
+            problem->Pmodes.reconstruct(P, p, "p");
             //problem->Peqn_global().solve(); //For debug purposes only
 
             if (problem->_simple().finalNonOrthogonalIter())
             {
-                phi = problem->getPhiHbyA(problem->Ueqn_global(), U, P) + problem->Peqn_global().flux();
+                // phi = problem->getPhiHbyA(problem->Ueqn_global(), U, P) + problem->Peqn_global().flux();
+            	phi = problem->getPhiHbyA(UEqnR, U, P) + PEqnR.flux(); //Are you sure you still can use it?????????????????????????????????
             }
         }
 
 #include "incompressible/continuityErrs.H"
         P.relax();// Explicitly relax pressure for momentum corrector
-        U = problem->HbyA() - (1.0 / problem->Ueqn_global().A()) * problem->getGradP(P);
+        //U = problem->HbyA() - (1.0 / problem->Ueqn_global().A()) * problem->getGradP(P);
+        U = problem->HbyA() - (1.0 / UEqnR.A()) * problem->getGradP(P);
+
         U.correctBoundaryConditions();
         fvOptions.correct(U);
         bool pLimited = problem->_pressureControl().limit(P);
