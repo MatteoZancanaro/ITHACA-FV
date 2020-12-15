@@ -83,6 +83,22 @@ int main(int argc, char* argv[])
 {
     // Construct the tutorial object
     tutorial13 example(argc, argv);
+    // volScalarField& s = example._p();
+    // Info << example._p().boundaryFieldRef()[1] << endl;
+    // Info << example._p().boundaryFieldRef()[1][0] << endl;
+    // example._p().boundaryFieldRef()[1][0] = 11; 
+    // Info << example._p().boundaryFieldRef()[1] << endl;
+    // freestreamPressureFvPatchScalarField& Tpatch =
+    //     refCast<freestreamPressureFvPatchScalarField>(s.boundaryFieldRef()[1]);
+    // scalarField& gradTpatch = Tpatch.freestreamValue();
+    // Info << gradTpatch << endl;
+    // forAll(gradTpatch, faceI)
+    // {
+    //     double value = valueList[faceI];
+    //     gradTpatch[faceI] = value;
+    // }
+
+    //exit(0);
 
     ITHACAparameters* para = ITHACAparameters::getInstance();
 

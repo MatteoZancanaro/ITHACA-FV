@@ -166,7 +166,9 @@ GeometricField<T, fvPatchField, volMesh> Modes<T>::reconstruct(
     int Nmodes = Coeff.rows();
     Eigen::VectorXd InField = EigenModes[0].leftCols(Nmodes) * Coeff;
     inputField = Foam2Eigen::Eigen2field(inputField, InField);
-    inputField.rename(Name);
+    //inputField.rename(Name);
+    word& oldName = const_cast<word&>(inputField.name());
+    oldName = Name;
 
     for (int i = 0; i < NBC; i++)
     {

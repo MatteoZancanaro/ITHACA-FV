@@ -179,7 +179,7 @@ void assignBC(volScalarField& s, label BC_ind,
 
     if (typeBC == "fixedValue" || typeBC == "calculated"
             || typeBC == "fixedFluxPressure" ||  typeBC == "processor"
-            || typeBC == "nutkWallFunction")
+            || typeBC == "nutkWallFunction" || typeBC == "mixedEnergy")
     {
         for (label i = 0; i < sizeBC; i++)
         {
@@ -214,6 +214,23 @@ void assignBC(volScalarField& s, label BC_ind,
             double value = valueList[faceI];
             gradTpatch[faceI] = value;
         }
+    }
+    else if (typeBC == "freestreamPressure")
+    {
+        for (label i = 0; i < sizeBC; i++)
+        {
+            double value = valueList[i];
+            s.boundaryFieldRef()[BC_ind][i] = value;
+        }
+
+        // freestreamPressureFvPatchScalarField& Tpatch =
+        //     refCast<freestreamPressureFvPatchScalarField>(s.boundaryFieldRef()[BC_ind]);
+        // scalarField& gradTpatch = Tpatch.freestreamValue();
+        // forAll(gradTpatch, faceI)
+        // {
+        //     double value = valueList[faceI];
+        //     gradTpatch[faceI] = value;
+        // }
     }
     else if (typeBC == "empty")
     {

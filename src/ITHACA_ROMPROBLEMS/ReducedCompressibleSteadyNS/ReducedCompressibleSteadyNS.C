@@ -169,6 +169,7 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
         u = reducedProblem::solveLinearSys(RedLinSysU, u, uResidual, vel_now, "bdcSvd");
         ULmodes.reconstruct(U, u, "U");
         //solve(problem->Ueqn_global() == -problem->getGradP(P)); //For debug purposes only, second part only useful when using uEqn_global==-getGradP
+        //solve(UEqnR == -problem->getGradP(P)); //For debug purposes only, second part only useful when using uEqn_global==-getGradP
         fvOptions.correct(U);
         
         //Energy equation phase
@@ -191,6 +192,7 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
         e = reducedProblem::solveLinearSys(RedLinSysE, e, eResidual);
         problem->Emodes.reconstruct(E, e, "e");
         //problem->Eeqn_global().solve(); //For debug purposes only
+        //EEqnR.solve(); //For debug purposes only
         fvOptions.correct(E);
         thermo.correct(); // Here are calculated both temperature and density based on P,U and he.
         // Pressure equation phase
@@ -230,6 +232,7 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
             p = reducedProblem::solveLinearSys(RedLinSysP, p, pResidual);
             problem->Pmodes.reconstruct(P, p, "p");
             //problem->Peqn_global().solve(); //For debug purposes only
+            //PEqnR.solve(); //For debug purposes only
 
             if (problem->_simple().finalNonOrthogonalIter())
             {
