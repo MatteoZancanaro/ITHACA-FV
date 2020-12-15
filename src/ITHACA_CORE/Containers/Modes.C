@@ -265,7 +265,9 @@ Modes<Type, PatchField, GeoMesh>::reconstruct(
     }
 
     inputField = Foam2Eigen::Eigen2field(inputField, InField);
-    inputField.rename(Name);
+    //inputField.rename(Name);
+    word& oldName = const_cast<word&>(inputField.name());
+    oldName = Name;
 
     for (label i = 0; i < NBC; i++)
     {

@@ -40,6 +40,7 @@ SourceFiles
 #include "fvCFD.H"
 #include "IOmanip.H"
 #include "freestreamFvPatchField.H"
+#include "freestreamPressureFvPatchScalarField.H"
 #include <sys/stat.h>
 #include <unistd.h>
 #pragma GCC diagnostic push
