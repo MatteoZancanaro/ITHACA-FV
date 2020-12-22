@@ -38,7 +38,8 @@ Vector<double> uresidual_v(0, 0, 0);
 scalar presidual = 1;
 
 ITHACAparameters* para = ITHACAparameters::getInstance();
-int middleStep = para->ITHACAdict->lookupOrDefault<int>("middleStep", 20);
+middleExport = para->ITHACAdict->lookupOrDefault<bool>("middleExport", true);
+middleStep = para->ITHACAdict->lookupOrDefault<int>("middleStep", 20);
 scalar csolve = 0;
 scalar saver = 0;
 scalar folderN = 0;

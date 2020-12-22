@@ -109,7 +109,7 @@ class ReducedCompressibleSteadyNS: public ReducedSteadyNSTurb
         // Variables
 
         /// Lifted velocity modes.
-        Modes<vector> ULmodes;
+        volVectorModes ULmodes;
 
         /// Full problem.
         CompressibleSteadyNS* problem;

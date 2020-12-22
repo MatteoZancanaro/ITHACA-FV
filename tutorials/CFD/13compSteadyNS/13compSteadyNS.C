@@ -174,7 +174,7 @@ int main(int argc, char* argv[])
         reduced.solveOnlineCompressible(mu_now, NmodesUproj, NmodesPproj, NmodesEproj);
     }
 
-    if(!ITHACAutilities::check_folder("./checkOff"))
+    if(!ITHACAutilities::check_folder("./ITHACAoutput/checkOff"))
     {
         tutorial13 checkOff(argc, argv);
         checkOff.mu  = ITHACAstream::readMatrix("./parsOn_mat.txt");
@@ -186,7 +186,7 @@ int main(int argc, char* argv[])
         checkOff.offline=false;
         checkOff.middleExport = false;
         checkOff.restart();
-        checkOff.offlineSolve("./checkOff/");
+        checkOff.offlineSolve("./ITHACAoutput/checkOff/");
     }
 
     exit(0);

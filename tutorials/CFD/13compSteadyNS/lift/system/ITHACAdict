@@ -18,38 +18,25 @@ FoamFile
 EigenSolver eigen;
 
 // Number of modes to output and to use for projection
-NmodesUout 30;
-NmodesUproj 15;
-NmodesPout 30;
-NmodesPproj 15;
-NmodesEout 30;
-NmodesEproj 15;
+NmodesUout 15;
+NmodesUproj 10;
+NmodesPout 15;
+NmodesPproj 10;
+NmodesEout 15;
+NmodesEproj 10;
 
 // Output format to save market vectors.
 OutPrecision 20;
 OutType fixed;
 
-// Bool to decide if middle solutions are to be exported
-middleExport true;
-
-// Distance between exported middle snapshots
-middleStep 20;
-
 // Specific problem of a stationary case
 tolerance 5e-5;
-maxIter 1000;
-
-// Thresholds to stop the reduced SIMPLE algorithm
-residualJumpLim 1e-10;
-normalizedResidualLim 1e-10;
+maxIter 2000;
 
 // Export Reduced Matrices
 exportPython 1;
 exportMatlab 1;
 exportTxt 1;
-
-// Inlet boundary conditions velocities.
-online_velocities vel.txt;
 
 
 

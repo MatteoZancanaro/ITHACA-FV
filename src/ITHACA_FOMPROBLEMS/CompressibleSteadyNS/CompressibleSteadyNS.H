@@ -83,7 +83,7 @@ class CompressibleSteadyNS: public SteadyNSTurb
         /// the Parameters folder.
         ///
         //void truthSolve(List<scalar> mu_now);
-        void truthSolve(word folder, bool middleExport);
+        void truthSolve(word folder);
 
         // Momuntum equation terms
         fvVectorMatrix getUmatrix(volVectorField& U);//, Vector<double>& uresidual_v);
@@ -154,7 +154,7 @@ class CompressibleSteadyNS: public SteadyNSTurb
         PtrList<volScalarField> Efield;
 
         /// List of pointers used to form the energy modes
-        Modes<scalar> Emodes;
+        volScalarModes Emodes;
 
         autoPtr<fvVectorMatrix> Ueqn_global;
 
@@ -173,6 +173,12 @@ class CompressibleSteadyNS: public SteadyNSTurb
 
         /// Number of maximum iterations to be done for the computation of the truth solution
         scalar maxIter;
+
+                /// Distancing between intermediate steps (for turbulent case only)
+        label middleStep;
+
+        /// Export also intermediate fields
+        bool middleExport;
 
 
 

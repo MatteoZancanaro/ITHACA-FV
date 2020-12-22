@@ -89,7 +89,7 @@ CompressibleSteadyNS::CompressibleSteadyNS(int argc, char* argv[])
 
 // Method to perform a truthSolve
 
-void CompressibleSteadyNS::truthSolve(word folder, bool middleExport)
+void CompressibleSteadyNS::truthSolve(word folder)
 {
     Time& runTime = _runTime();
     volVectorField& U = _U();
