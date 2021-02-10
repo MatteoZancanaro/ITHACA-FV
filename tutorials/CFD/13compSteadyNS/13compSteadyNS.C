@@ -171,7 +171,7 @@ int main(int argc, char* argv[])
         reduced.projectReducedOperators(NmodesUproj, NmodesPproj, NmodesEproj);
         example.restart();
         example.turbulence->validate();
-        reduced.solveOnlineCompressible(mu_now, NmodesUproj, NmodesPproj, NmodesEproj);
+        reduced.solveOnlineCompressible(NmodesUproj, NmodesPproj, NmodesEproj);
     }
 
     if(!ITHACAutilities::check_folder("./ITHACAoutput/checkOff"))

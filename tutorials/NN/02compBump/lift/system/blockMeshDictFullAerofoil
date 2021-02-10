@@ -155,23 +155,15 @@ edges
 
 boundary
 (
-    top
-    {
-        type wall;
-        faces
-        (   
-            (5 8 20 17)
-            (8 4 16 20)
-        );
-    }
-
-    bottom
+    aerofoil
     {
         type wall;
         faces
         (
             (4 7 19 16)
-            (7 5 17 19) 
+            (7 5 17 19)
+            (5 8 20 17)
+            (8 4 16 20)
         );
     }
 

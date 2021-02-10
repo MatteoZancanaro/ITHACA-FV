@@ -64,6 +64,9 @@ public:
         x0 = ms->movingPoints();
         curX = x0;
         point0 = ms->curPoints();
+
+        /// Export intermediate steps
+    	middleExport = para->ITHACAdict->lookupOrDefault<bool>("middleExport", true);
     }
 
     List<vector> top0;
@@ -77,27 +80,31 @@ public:
     List<vector> curX;
     vectorField point0;
     vectorField point;
+    ITHACAparameters* para = ITHACAparameters::getInstance();
 
 	double f1(double chord, double x)
-		{
-		    double res = chord * (std::pow((x)/chord,0.5)*(1-(x)/chord))/(std::exp(15*(x)/chord));
-		    return res;
-		}
+	{
+	    double res = chord * (std::pow((x)/chord,0.5)*(1-(x)/chord))/(std::exp(15*(x)/chord));
+	    return res;
+	}
 
 	List<vector> moveBasis(const List<vector>& originalPoints, double par)
-		{
-		        List<vector> movedPoints(originalPoints);
-		        for(int i = 0; i<originalPoints.size(); i++)
-		        {
-		            movedPoints[i][2]+= par*f1(1,movedPoints[i][0]);
-		        }		
+	{
+	        List<vector> movedPoints(originalPoints);
+	        for(int i = 0; i<originalPoints.size(); i++)
+	        {
+	            movedPoints[i][2]+= par*f1(1,movedPoints[i][0]);
+	        }		
 
-		        return movedPoints;
-		}
+	        return movedPoints;
+	}
 
-    void updateMesh(double parTop, double parBot)
+    void updateMesh(double parTop = 0, double parBot = 0)
+    {
+        _mesh().movePoints(point0);
+        if(parTop!=0 || parBot!=0)
         {
-            _mesh().movePoints(point0);
+        	std::cout << parTop << std::endl;
             List<vector> top0_cur = moveBasis(top0, parTop);
             List<vector> bot0_cur = moveBasis(bot0, parBot);
             ITHACAutilities::setIndices2Value(top0_ind, top0_cur, movingIDs, curX);
@@ -105,32 +112,34 @@ public:
             ms->setMotion(curX - x0);
             point = ms->curPoints();
             _mesh().movePoints(point);
-        }
-
+    	}
+    }
 
     /// Perform an Offline solve
     void offlineSolve(word folder = "./ITHACAoutput/Offline/")
     {
-        // if the offline solution is already performed read the fields
-        if (offline)
-        {
-            /// Velocity field
-            volVectorField& U = _U();
-            /// Pressure field
-            volScalarField& p = _p();
-            /// Energy field
-            volScalarField& E = _E();
+	    /// Velocity field
+        volVectorField& U = _U();
+        /// Pressure field
+        volScalarField& p = _p();
+        /// Energy field
+        volScalarField& E = _E();
 
+        // if the offline solution is already performed but POD modes are not present, then read the fields
+        if (offline && !ITHACAutilities::check_folder("./ITHACAoutput/POD/1"))
+        {
             ITHACAstream::readMiddleFields(Ufield, U, folder);
             ITHACAstream::readMiddleFields(Efield, E, folder);
             ITHACAstream::readMiddleFields(Pfield, p, folder);
             mu_samples = ITHACAstream::readMatrix("./parsOff_mat.txt");
         }
-        // else perform offline stage
-        else
+        // if offline stage ha snot been performed, then perform it
+        else if (!offline)
         {
             //Vector<double> Uinl(250, 0, 0);
-            Vector<double> Uinl(170, 0, 0);
+            //Vector<double> Uinl(170, 0, 0);
+            double UIFinit = para->ITHACAdict->lookupOrDefault<double>("UIFinit", 170);
+            Vector<double> Uinl(UIFinit, 0, 0);
 
             for (label i = 0; i < mu.rows(); i++)
             {
@@ -138,6 +147,7 @@ public:
                 //changeViscosity(mu(i, 0));
                 updateMesh(mu(i,0),mu(i,1));
                 ITHACAstream::writePoints(_mesh().points(), folder, name(i + 1) + "/polyMesh/");
+                //assignIF(_U(), Uinl);
                 assignIF(_U(), Uinl);
                 truthSolve(folder);
 
@@ -177,9 +187,24 @@ int main(int argc, char* argv[])
 
     //exit(0);
 
+    // try
+    // {
+    // 	int i=2;
+    // 	if(i<3)
+    // 	{
+    // 		throw("i piccolo");
+    // 	}
+    // }
+
+    // catch(const char* message)
+    // {
+    // 	cerr<<"Succede che "<<message<< endl;
+    // }
+
+    // exit(0);
+
     ITHACAparameters* para = ITHACAparameters::getInstance();
 
-    Eigen::MatrixXd parOff;
     std::ifstream exFileOff("./parsOff_mat.txt");
     if (exFileOff)
     {
@@ -188,9 +213,11 @@ int main(int argc, char* argv[])
 
     else
     {
-        example.mu.resize(10, 2);
-        Eigen::MatrixXd parTop = ITHACAutilities::rand(10, 1, 0, 0.1);
-    	Eigen::MatrixXd parBot = ITHACAutilities::rand(10, 1, -0.1, 0);
+    	int OffNum = para->ITHACAdict->lookupOrDefault<int>("OffNum", 100);
+    	double BumpAmp = para->ITHACAdict->lookupOrDefault<double>("BumpAmp", 0.1);
+        example.mu.resize(OffNum, 2);
+        Eigen::MatrixXd parTop = ITHACAutilities::rand(example.mu.rows(), 1, 0, BumpAmp);
+    	Eigen::MatrixXd parBot = ITHACAutilities::rand(example.mu.rows(), 1, -BumpAmp, 0);
         example.mu.leftCols(1) = parTop;
         example.mu.rightCols(1) = parBot;
         ITHACAstream::exportMatrix(example.mu , "parsOff", "eigen", "./");
@@ -209,7 +236,24 @@ int main(int argc, char* argv[])
     //     ITHACAstream::exportMatrix(parOn, "parsOn", "eigen", "./");
     // }
     // 
+    Eigen::MatrixXd parsOn;
+    std::ifstream exFileOn("./parsOn_mat.txt");
+    if (exFileOn)
+    {
+        parsOn  = ITHACAstream::readMatrix("./parsOn_mat.txt");
+    }
 
+    else
+    {
+    	int OnNum = para->ITHACAdict->lookupOrDefault<int>("OnNum", 20);
+    	double BumpAmp = para->ITHACAdict->lookupOrDefault<double>("BumpAmp", 0.1);
+        parsOn.resize(OnNum, 2);
+        Eigen::MatrixXd parTopOn = ITHACAutilities::rand(OnNum, 1, 0, BumpAmp);
+    	Eigen::MatrixXd parBotOn = ITHACAutilities::rand(OnNum, 1, -BumpAmp, 0);
+        parsOn.leftCols(1) = parTopOn;
+        parsOn.rightCols(1) = parBotOn;
+        ITHACAstream::exportMatrix(parsOn , "parsOn", "eigen", "./");
+    }
     // Read some parameters from file
     int NmodesUout = para->ITHACAdict->lookupOrDefault<int>("NmodesUout", 15);
     int NmodesPout = para->ITHACAdict->lookupOrDefault<int>("NmodesPout", 15);
@@ -218,63 +262,106 @@ int main(int argc, char* argv[])
     int NmodesPproj = para->ITHACAdict->lookupOrDefault<int>("NmodesPproj", 10);
     int NmodesEproj = para->ITHACAdict->lookupOrDefault<int>("NmodesEproj", 10);
     //Set the inlet boundaries patch 0 directions x and y
+    label idInl = example._mesh().boundaryMesh().findPatchID("inlet");
     example.inletIndex.resize(1, 2);
-    example.inletIndex(0, 0) = 1;
+    example.inletIndex(0, 0) = idInl;
     example.inletIndex(0, 1) = 0;
     //Perform the offline solve
     example.offlineSolve();
-
-    exit(0);
-
+    //exit(0);
 
 
 
-    // //Read the lift field
-    // ITHACAstream::read_fields(example.liftfield, example._U(), "./lift/");
-    // ITHACAutilities::normalizeFields(example.liftfield);
-    // // Homogenize the snapshots
-    // example.computeLift(example.Ufield, example.liftfield, example.Uomfield);
-    // // Perform POD on velocity and pressure and store the first 10 modes
-    // ITHACAPOD::getModes(example.Uomfield, example.Umodes, example._U().name(), example.podex, 0, 0,
-    //                     NmodesUout);
-    // ITHACAPOD::getModes(example.Pfield, example.Pmodes, example._p().name(), example.podex, 0, 0,
-    //                     NmodesPout);
-    // ITHACAPOD::getModes(example.Efield, example.Emodes, example._E().name(), example.podex, 0, 0,
-    //                     NmodesEout);
+
+    //Read the lift field
+    ITHACAstream::read_fields(example.liftfield, example._U(), "./lift/");
+    ITHACAutilities::normalizeFields(example.liftfield);
+
+    if(!ITHACAutilities::check_folder("./ITHACAoutput/POD/1")) // If POD has already been performed, you do not have to omogenize anything
+    {
+	    // Homogenize the snapshots
+	    example.computeLift(example.Ufield, example.liftfield, example.Uomfield);
+	}
     
-    // // Create the reduced object
-    // ReducedCompressibleSteadyNS reduced(example);
+    // Perform POD on velocity and pressure and store the first 10 modes
+    example.updateMesh(); // Move the mesh to the original geometry to get the modes into a mid mesh
+
+    ITHACAPOD::getModes(example.Uomfield, example.Umodes, example._U().name(), example.podex, 0, 0,
+                        NmodesUout);
+    ITHACAPOD::getModes(example.Pfield, example.Pmodes, example._p().name(), example.podex, 0, 0,
+                        NmodesPout);
+    ITHACAPOD::getModes(example.Efield, example.Emodes, example._E().name(), example.podex, 0, 0,
+                        NmodesEout);
+    
+    // Create the reduced object
+    ReducedCompressibleSteadyNS reduced(example);
     
     // // Reads inlet volocities boundary conditions.
     // word vel_file(para->ITHACAdict->lookup("online_velocities"));
     // Eigen::MatrixXd vel = ITHACAstream::readMatrix(vel_file);
+    // 
+    
+    Eigen::MatrixXd vel(1,1);
+    vel(0,0) = example._U().boundaryFieldRef()[idInl][0][0];
 
-    // //Perform the online solutions
-    // for (label k = 0; k < parOn.rows(); k++)
-    // {
-    //     scalar mu_now = parOn(k, 0);
-    //     example.changeViscosity(mu_now);
-    //     reduced.setOnlineVelocity(vel);
-    //     reduced.projectReducedOperators(NmodesUproj, NmodesPproj, NmodesEproj);
-    //     example.restart();
-    //     example.turbulence->validate();
-    //     reduced.solveOnlineCompressible(mu_now, NmodesUproj, NmodesPproj, NmodesEproj);
-    // }
+    //Perform the online solutions
+    for (label k = 0; k < parsOn.rows(); k++)
+    {
+        //scalar mu_now = parOn(k, 0);
+        //example.changeViscosity(mu_now);
+        example.updateMesh(parsOn(k,0), parsOn(k,1));
+        ITHACAstream::writePoints(example._mesh().points(), "./ITHACAoutput/Online/", name(k + 1) + "/polyMesh/");
+        reduced.setOnlineVelocity(vel);
+        reduced.projectReducedOperators(NmodesUproj, NmodesPproj, NmodesEproj);
+        example.restart();
+        example.turbulence->validate();
+        reduced.solveOnlineCompressible(NmodesUproj, NmodesPproj, NmodesEproj);
+    }
 
-    // if(!ITHACAutilities::check_folder("./ITHACAoutput/checkOff"))
-    // {
-    //     tutorial02 checkOff(argc, argv);
-    //     checkOff.mu  = ITHACAstream::readMatrix("./parsOn_mat.txt");
-    //     //Set the inlet boundaries patch 0 directions x and y
-    //     checkOff.inletIndex.resize(1, 2);
-    //     checkOff.inletIndex(0, 0) = 1;
-    //     checkOff.inletIndex(0, 1) = 0;
-    //     //Perform the offline solve
-    //     checkOff.offline=false;
-    //     checkOff.middleExport = false;
-    //     checkOff.restart();
-    //     checkOff.offlineSolve("./ITHACAoutput/checkOff/");
-    // }
+    if(!ITHACAutilities::check_folder("./ITHACAoutput/checkOff"))
+    {
+        tutorial02 checkOff(argc, argv);
+        checkOff.mu  = ITHACAstream::readMatrix("./parsOn_mat.txt");
+        //Set the inlet boundaries patch 0 directions x and y
+        label idInl = checkOff._mesh().boundaryMesh().findPatchID("inlet");
+        checkOff.inletIndex.resize(1, 2);
+        checkOff.inletIndex(0, 0) = idInl;
+        checkOff.inletIndex(0, 1) = 0;
+        //Perform the offline solve
+        checkOff.offline = false;
+        checkOff.middleExport = false;
+        checkOff.restart();
+        checkOff.offlineSolve("./ITHACAoutput/checkOff/");
+
+        PtrList<volVectorField> onlineU;
+        PtrList<volScalarField> onlineP;
+        PtrList<volScalarField> onlineE;
+        ITHACAstream::read_fields(onlineU,checkOff._U(),"./ITHACAoutput/Online/");
+        ITHACAstream::read_fields(onlineP,checkOff._p(),"./ITHACAoutput/Online/");
+        ITHACAstream::read_fields(onlineE,checkOff._E(),"./ITHACAoutput/Online/");
+        Eigen::MatrixXd errorU = ITHACAutilities::errorL2Rel(checkOff.Ufield,
+                            onlineU);
+        Eigen::MatrixXd errorP = ITHACAutilities::errorL2Rel(checkOff.Pfield,
+                            onlineP);
+        Eigen::MatrixXd errorE = ITHACAutilities::errorL2Rel(checkOff.Efield,
+                            onlineE);
+        ITHACAstream::exportMatrix(errorU,"errorU", "python", "./ITHACAoutput/checkOff/");
+        ITHACAstream::exportMatrix(errorP,"errorP", "python", "./ITHACAoutput/checkOff/");
+        ITHACAstream::exportMatrix(errorE,"errorE", "python", "./ITHACAoutput/checkOff/");
+
+        for(label j=0; j<checkOff.mu.rows(); j++)
+        {
+        	volVectorField Ue = checkOff.Ufield[j] - onlineU[j];
+        	volScalarField Pe = checkOff.Pfield[j] - onlineP[j];
+        	volScalarField Ee = checkOff.Efield[j] - onlineE[j];
+        	Ue.rename("Ue");
+        	Pe.rename("Pe");
+        	Ee.rename("Ee");
+        	ITHACAstream::exportSolution(Ue, name(j+1), "./ITHACAoutput/checkOff/");
+	    	ITHACAstream::exportSolution(Pe, name(j+1), "./ITHACAoutput/checkOff/");
+	    	ITHACAstream::exportSolution(Ee, name(j+1), "./ITHACAoutput/checkOff/");
+        }
+    }
 
     exit(0);
 }

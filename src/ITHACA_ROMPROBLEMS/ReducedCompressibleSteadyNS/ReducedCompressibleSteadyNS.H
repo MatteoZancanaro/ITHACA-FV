@@ -86,8 +86,7 @@ class ReducedCompressibleSteadyNS: public ReducedSteadyNSTurb
         /// @param[in]  NmodesPproj  The number of modes one wants to use for pressure projection.
         /// @param[in]  NmodesEproj  The number of modes one wants to use for energy projection.
         ///
-        void solveOnlineCompressible(scalar mu_now,
-                                     int NmodesUproj, int NmodesPproj, int NmodesEproj);
+        void solveOnlineCompressible(int NmodesUproj, int NmodesPproj, int NmodesEproj);
 
         ///
         /// @brief      It checks if the number of imposed boundary conditions is correct

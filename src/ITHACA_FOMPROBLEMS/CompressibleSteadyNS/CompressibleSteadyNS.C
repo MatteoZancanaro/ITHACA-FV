@@ -280,6 +280,7 @@ void CompressibleSteadyNS::restart()
     //                                 args ) );
     // std::cerr << "File: CompressibleSteadyNS.C, Line: 281" << std::endl;
     Time& runTime = _runTime();
+    runTime.setTime(0, 1);
     // _mesh = autoPtr<fvMesh>
     //         (
     //             new fvMesh

@@ -90,9 +90,10 @@ void ReducedCompressibleSteadyNS::projectReducedOperators(int NmodesUproj, int N
 
 // * * * * * * * * * * * * * * * Solve Functions  * * * * * * * * * * * * * //
 
-void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
-        int NmodesUproj, int NmodesPproj, int NmodesEproj)
+void ReducedCompressibleSteadyNS::solveOnlineCompressible(int NmodesUproj, int NmodesPproj, int NmodesEproj)
 {
+    counter++;
+    
     // Residuals initialization
     scalar residualNorm(1);
     scalar residualJump(1);
@@ -282,7 +283,7 @@ void ReducedCompressibleSteadyNS::solveOnlineCompressible(scalar mu_now,
         problem->turbulence->correct();
     }
     label k = 1;
-    ITHACAstream::exportSolution(U, "1", "./ITHACAoutput/Online/");
-    ITHACAstream::exportSolution(P, "1", "./ITHACAoutput/Online/");
-    ITHACAstream::exportSolution(E, "1", "./ITHACAoutput/Online/");
+    ITHACAstream::exportSolution(U, name(counter), "./ITHACAoutput/Online/");
+    ITHACAstream::exportSolution(P, name(counter), "./ITHACAoutput/Online/");
+    ITHACAstream::exportSolution(E, name(counter), "./ITHACAoutput/Online/");
 }

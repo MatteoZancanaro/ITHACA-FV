@@ -174,7 +174,7 @@ class CompressibleSteadyNS: public SteadyNSTurb
         /// Number of maximum iterations to be done for the computation of the truth solution
         scalar maxIter;
 
-                /// Distancing between intermediate steps (for turbulent case only)
+        /// Distancing between intermediate steps (for turbulent case only)
         label middleStep;
 
         /// Export also intermediate fields

@@ -290,7 +290,7 @@ class reducedSimpleSteadyNN : public reducedSimpleSteadyNS
                 ITHACAutilities::assignBC(U, 0, v);
 
                 // If the case is turbulent, then the network is evaluated
-                if (ITHACAutilities::isTurbulent())
+                if (ITHACAutilities::isTurbulent()) //Se lo metto qui significa che non sto aggiornando nuEff!!!!
                 {
                     Eigen::MatrixXd nutCoeff = problem->evalNet(a);
                     volScalarField& nut = const_cast<volScalarField&>

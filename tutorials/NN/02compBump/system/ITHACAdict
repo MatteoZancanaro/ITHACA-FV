@@ -29,6 +29,16 @@ NmodesEproj 15;
 OutPrecision 20;
 OutType fixed;
 
+// Value to be assigned to x internal field for init cond
+UIFinit 170;
+
+// Number of geometries to be solved
+OffNum 100;
+OnNum 20;
+
+// Maximum coefficient for bump function amplitude
+BumpAmp 0.1;
+
 // Bool to decide if middle solutions are to be exported
 middleExport true;
 
@@ -49,7 +59,7 @@ exportMatlab 1;
 exportTxt 1;
 
 // Inlet boundary conditions velocities.
-online_velocities vel.txt;
+//online_velocities vel.txt;
 
 
 
