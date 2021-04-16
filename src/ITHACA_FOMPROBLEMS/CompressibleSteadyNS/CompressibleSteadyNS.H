@@ -176,6 +176,7 @@ class CompressibleSteadyNS: public SteadyNSTurb
 
         /// Distancing between intermediate steps (for turbulent case only)
         label middleStep;
+        label middleStepInit;
 
         /// Export also intermediate fields
         bool middleExport;

@@ -60,7 +60,7 @@ ReducedCompressibleSteadyNS::ReducedCompressibleSteadyNS(
 void ReducedCompressibleSteadyNS::setOnlineVelocity(Eigen::MatrixXd vel)
 {
     M_Assert(problem->inletIndex.rows() == vel.size(),
-             "Imposed boundary conditions dimensions do not match given values matrix dimensions");
+             "Imposed boundary conditions dimensions do not match given values matrix dimensions into setOnlineVelocity");
     Eigen::MatrixXd vel_scal;
     vel_scal.resize(vel.rows(), vel.cols());
 
@@ -85,7 +85,7 @@ void ReducedCompressibleSteadyNS::projectReducedOperators(int NmodesUproj, int N
     {
         gradModP.append(fvc::grad(problem->Pmodes[i]));
     }
-    projGradModP = ULmodes.project(gradModP, NmodesUproj);
+    projGradModP = ULmodes.project(gradModP, NmodesUproj + problem->inletIndex.rows());
 }
 
 // * * * * * * * * * * * * * * * Solve Functions  * * * * * * * * * * * * * //

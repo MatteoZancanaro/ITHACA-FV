@@ -43,10 +43,24 @@ scalar csolve = 0;
 scalar saver = 0;
 scalar folderN = 0;
 
+// Variables to save data
+std::ofstream res_os;
+std::ofstream snaps_os;
+std::ofstream iters;
+std::ofstream res_U;
+std::ofstream res_P;
+std::ofstream res_E;
+res_os.open(folder + "/residuals", std::ios_base::app);
+snaps_os.open(folder + "/snaps", std::ios_base::app);
+iters.open(folder + "/iters", std::ios_base::app);
+res_U.open(folder + name(counter) + "/res_U", std::ios_base::app);
+res_P.open(folder + name(counter) + "/res_P", std::ios_base::app);
+res_E.open(folder + name(counter) + "/res_E", std::ios_base::app);
+
 
 // Variable that can be changed
-std::ofstream res_os;
-res_os.open("./ITHACAoutput/Offline/residuals", std::ios_base::app);
+// std::ofstream res_os;
+// res_os.open("./ITHACAoutput/Offline/residuals", std::ios_base::app);
 
 tolerance = ITHACAdict->lookupOrDefault<scalar>("tolerance", 1e-5);
 maxIter = ITHACAdict->lookupOrDefault<scalar>("maxIter", 2000);
@@ -131,35 +145,52 @@ while (simple.loop() && residual > tolerance && csolve < maxIter )
       ITHACAstream::exportSolution(U, name(folderN), folder + name(counter));
       ITHACAstream::exportSolution(p, name(folderN), folder + name(counter));
       ITHACAstream::exportSolution(E, name(folderN), folder + name(counter));
-      ITHACAstream::exportSolution(_nut, name(folderN), folder + name(counter));
-      Ufield.append(U);
-      Pfield.append(p);
-      Efield.append(E);
-      nutFields.append(_nut);
-    }
+      auto nut = _mesh().lookupObject<volScalarField>("nut");
+      ITHACAstream::exportSolution(nut, name(folderN), folder + name(counter));
+      Ufield.append(U.clone());
+      Pfield.append(p.clone());
+      Efield.append(E.clone());
+      nutFields.append(nut.clone());
+
+      res_U << uresidual << std::endl;
+      res_P << presidual << std::endl;
+      res_E << eresidual << std::endl;
 }
+}
+
+snaps_os << folderN + 1 << std::endl;
+iters << csolve << std::endl;
+res_os << residual << std::endl;
+res_os.close();
+res_U.close();
+res_P.close();
+snaps_os.close();
+iters.close();
 
 if (middleExport)
 {
   ITHACAstream::exportSolution(U, name(folderN+1), folder + name(counter));
   ITHACAstream::exportSolution(p, name(folderN+1), folder + name(counter));
   ITHACAstream::exportSolution(E, name(folderN+1), folder + name(counter));
-  ITHACAstream::exportSolution(_nut, name(folderN+1), folder + name(counter));
+  auto nut = _mesh().lookupObject<volScalarField>("nut");
+  ITHACAstream::exportSolution(nut, name(folderN+1), folder + name(counter));
 }
 else
 {
   ITHACAstream::exportSolution(U, name(counter), folder);
   ITHACAstream::exportSolution(p, name(counter), folder);
   ITHACAstream::exportSolution(E, name(counter), folder);
-  ITHACAstream::exportSolution(_nut, name(counter), folder);
+  auto nut = _mesh().lookupObject<volScalarField>("nut");
+  ITHACAstream::exportSolution(nut, name(counter), folder);
 }
-Ufield.append(U);
-Pfield.append(p);
-Efield.append(E);
-nutFields.append(_nut);
+Ufield.append(U.clone());
+Pfield.append(p.clone());
+Efield.append(E.clone());
+auto nut = _mesh().lookupObject<volScalarField>("nut");
+nutFields.append(nut.clone());
 
-res_os << residual << std::endl;
-res_os.close();
+// res_os << residual << std::endl;
+// res_os.close();
 runTime.setTime(runTime.startTime(), 0);
 
 

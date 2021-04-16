@@ -110,6 +110,12 @@ class ReducedCompressibleSteadyNS: public ReducedSteadyNSTurb
         /// Lifted velocity modes.
         volVectorModes ULmodes;
 
+        // /// List of snapshots for the solution for eddy viscosity
+        // PtrList<volScalarField> nutFields;
+
+        // /// List of POD modes for eddy viscosity
+        // volScalarModes nutModes;
+
         /// Full problem.
         CompressibleSteadyNS* problem;
 

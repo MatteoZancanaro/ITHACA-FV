@@ -18,12 +18,14 @@ FoamFile
 EigenSolver eigen;
 
 // Number of modes to output and to use for projection
-NmodesUout 30;
-NmodesUproj 15;
-NmodesPout 30;
-NmodesPproj 15;
-NmodesEout 30;
-NmodesEproj 15;
+NmodesUout 60;
+NmodesUproj 30;
+NmodesPout 60;
+NmodesPproj 30;
+NmodesEout 60;
+NmodesEproj 30;
+NmodesNutOut 60;
+NmodesNutProj 15;
 
 // Output format to save market vectors.
 OutPrecision 20;
@@ -44,6 +46,7 @@ middleExport true;
 
 // Distance between exported middle snapshots
 middleStep 20;
+middleStepInit 4;
 
 // Specific problem of a stationary case
 tolerance 5e-5;
