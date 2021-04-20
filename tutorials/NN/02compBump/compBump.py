@@ -115,9 +115,9 @@ class Net:
 	    #torch.nn.Linear(256, 64),
             #torch.nn.Tanh(),
             torch.nn.Linear(Nin, 256),
-            torch.nn.ReLU(),
+            torch.nn.Tanh(),
             torch.nn.Linear(256, 64),
-            torch.nn.ReLU(),
+            torch.nn.Tanh(),
             torch.nn.Linear(64, Nout),
         )
         
