@@ -59,8 +59,6 @@ class CompressibleSteadyNN : public CompressibleSteadyNS
             Net->push_back(torch::nn::Linear(64, NNutModes));
             optimizer = new torch::optim::Adam(Net->parameters(),
                                                torch::optim::AdamOptions(2e-2));
-            // std::cerr << "LIFTTTTTTTTTTTTTTTTTTTTTTTTTTT " << inletIndex.rows() << std::endl;
-            // exit(0);
         };
 
     label NUmodes;
@@ -197,28 +195,15 @@ class CompressibleSteadyNN : public CompressibleSteadyNS
         Eigen::MatrixXd evalNet(Eigen::MatrixXd a)
         {
             netTorchscript.eval();
-            std::cerr << "debug point 1" << std::endl;
             a.transposeInPlace();
-            std::cerr << "debug point 2" << std::endl;
-            std::cout << a.size() << std::endl;
-            std::cout << bias_inp.size() << std::endl;
-            std::cout << scale_inp.size() << std::endl;
             a = (a.array() - bias_inp.array()) / scale_inp.array();
-            std::cerr << "debug point 3" << std::endl;
             torch::Tensor aTensor = eigenMatrix2torchTensor(a);
-            std::cerr << "debug point 4" << std::endl;
             torch::Tensor out;// = Net->forward(aTensor);
-            std::cerr << "debug point 5" << std::endl;
             std::vector<torch::jit::IValue> XTensorInp;
-            std::cerr << "debug point 6" << std::endl;
             XTensorInp.push_back(aTensor);
-            std::cerr << "debug point 7" << std::endl;
             out = netTorchscript.forward(XTensorInp).toTensor();
-            std::cerr << "debug point 8" << std::endl;
             Eigen::MatrixXd g = torchTensor2eigenMatrix<double>(out);
-            std::cerr << "debug point 9" << std::endl;
             g = g.array() * scale_out.array() + bias_out.array();
-            std::cerr << "debug point 10" << std::endl;
             g.transposeInPlace();
             return g;
         }
@@ -237,26 +222,6 @@ class ReducedCompressibleSteadyNN : public ReducedCompressibleSteadyNS
         /// Full problem.
         CompressibleSteadyNN* problem;
 
-    // void setOnlineVelocity(Eigen::MatrixXd vel)
-    // {
-    //     M_Assert(problem->inletIndex.rows() == vel.size(),
-    //              "Imposed boundary conditions dimensions do not match given values matrix dimensions into setOnlineVelocity");
-    //     Eigen::MatrixXd vel_scal;
-    //     vel_scal.resize(vel.rows(), vel.cols());
-
-    //     for (int k = 0; k < problem->inletIndex.rows(); k++)
-    //     {
-    //         label p = problem->inletIndex(k, 0);
-    //         label l = problem->inletIndex(k, 1);
-    //         scalar area = gSum(problem->liftfield[0].mesh().magSf().boundaryField()[p]);
-    //         scalar u_lf = gSum(problem->liftfield[k].mesh().magSf().boundaryField()[p] *
-    //                            problem->liftfield[k].boundaryField()[p]).component(l) / area;
-    //         vel_scal(k, 0) = vel(k, 0) / u_lf;
-    //     }
-
-    //     vel_now = vel_scal;
-    // }
-
     void projectReducedOperators(int NmodesUproj, int NmodesPproj, int NmodesEproj)
     {
         PtrList<volVectorField> gradModP;
@@ -264,9 +229,6 @@ class ReducedCompressibleSteadyNN : public ReducedCompressibleSteadyNS
         {
             gradModP.append(fvc::grad(problem->Pmodes[i]));
         }
-        //label NmodesUprojL = NmodesUproj + problem->inletIndex.rows();
-        //std::cout << ULmodes.size() << std::endl;
-        //projGradModP = ULmodes.project(gradModP, NmodesUprojL); // Lifted modes
         projGradModP = problem->Umodes.project(gradModP, NmodesUproj); // Modes without lifting
     }
 
@@ -278,12 +240,9 @@ class ReducedCompressibleSteadyNN : public ReducedCompressibleSteadyNS
         // Residuals initialization
         scalar residualNorm(1);
         scalar residualJump(1);
-        //Eigen::MatrixXd uResidualOld = Eigen::MatrixXd::Zero(1, NmodesUproj + problem->inletIndex.rows()); // Only for lifting funciton
         Eigen::MatrixXd uResidualOld = Eigen::MatrixXd::Zero(1, NmodesUproj);
         Eigen::MatrixXd eResidualOld = Eigen::MatrixXd::Zero(1, NmodesEproj);
         Eigen::MatrixXd pResidualOld = Eigen::MatrixXd::Zero(1, NmodesPproj);
-        // Eigen::VectorXd uResidual(Eigen::Map<Eigen::VectorXd>(uResidualOld.data(),
-        //                           NmodesUproj + problem->inletIndex.rows())); // Only for lifting function
         Eigen::VectorXd uResidual(Eigen::Map<Eigen::VectorXd>(uResidualOld.data(),
                                   NmodesUproj));
         Eigen::VectorXd eResidual(Eigen::Map<Eigen::VectorXd>(eResidualOld.data(),
@@ -316,15 +275,14 @@ class ReducedCompressibleSteadyNN : public ReducedCompressibleSteadyNS
         fv::options& fvOptions = problem->_fvOptions();
         scalar cumulativeContErr = problem->cumulativeContErr;
         // Reduced variables initialization
-        //Eigen::MatrixXd u = Eigen::MatrixXd::Zero(NmodesUproj + problem->inletIndex.rows(), 1); // Only for lifting
         Eigen::MatrixXd u = Eigen::MatrixXd::Zero(NmodesUproj, 1);
         Eigen::MatrixXd e = Eigen::MatrixXd::Zero(NmodesEproj, 1);
         Eigen::MatrixXd p = Eigen::MatrixXd::Zero(NmodesPproj, 1);
         Eigen::MatrixXd nutCoeff = ITHACAutilities::getCoeffs(nut, problem->nutModes, NmodesNutProj, true);
 
-        vector Uinlet(170,0,0); // Vector for the inlet boundary condition
+        //vector Uinlet(170,0,0); // Vector for the inlet boundary condition
         label idInl = problem->_mesh().boundaryMesh().findPatchID("inlet"); // ID of the inlet patch
-        //vel_now = Uinlet[0];
+        vector Uinlet(problem->_U().boundaryFieldRef()[idInl][0][0],0,0);
 
         while ((residualJump > residualJumpLim
                 || residualNorm > normalizedResidualLim) && csolve < maxIter)
@@ -341,13 +299,10 @@ class ReducedCompressibleSteadyNN : public ReducedCompressibleSteadyNS
             uResidualOld = uResidual;
             eResidualOld = eResidual;
             pResidualOld = pResidual;
+
             //Momentum equation phase
             List<Eigen::MatrixXd> RedLinSysU;
 
-            // volScalarField nueff = problem->turbulence->nuEff();
-            // ITHACAstream::exportSolution(nueff, name(csolve), "./ITHACAoutput/testNuEff/");
-
-            //problem->getUmatrix(U);
             ITHACAutilities::assignBC(U, idInl, Uinlet);
             fvVectorMatrix UEqnR
             (
@@ -359,28 +314,18 @@ class ReducedCompressibleSteadyNN : public ReducedCompressibleSteadyNS
             );
             UEqnR.relax();
             fvOptions.constrain(UEqnR);
-            //RedLinSysU = ULmodes.project(problem->Ueqn_global(), NmodesUproj);
-            //RedLinSysU = ULmodes.project(UEqnR, NmodesUproj + problem->inletIndex.rows()); // Lifted modes
+
             RedLinSysU = problem->Umodes.project(UEqnR, NmodesUproj); // Modes without lifting
             Eigen::MatrixXd projGradP = projGradModP * p;
             RedLinSysU[1] = RedLinSysU[1] - projGradP;
-            //std::cout << "U " << u << std::endl;
-            std::cout << "Ure " << uResidual << std::endl;
-            std::cout << "size " << RedLinSysU.size() << std::endl;
-            std::cout << "size 1: " << RedLinSysU[0].rows() << std::endl;
-            std::cout << "size 2: " << RedLinSysU[0].cols() << std::endl;
-            //std::cout << "matrix: " << RedLinSysU[0] << std::endl;
-            //u = reducedProblem::solveLinearSys(RedLinSysU, u, uResidual, vel_now, "fullPivLu");//"bdcSvd"); // vel_now only needed for lifting functions
+
             u = reducedProblem::solveLinearSys(RedLinSysU, u, uResidual);//, "fullPivLu");//"bdcSvd");
-            //ULmodes.reconstruct(U, u, "U");
             problem->Umodes.reconstruct(U, u, "U");
             ITHACAutilities::assignBC(U, idInl, Uinlet);
-            //solve(problem->Ueqn_global() == -problem->getGradP(P)); //For debug purposes only, second part only useful when using uEqn_global==-getGradP
             //solve(UEqnR == -problem->getGradP(P)); //For debug purposes only, second part only useful when using uEqn_global==-getGradP
             fvOptions.correct(U);
             
             //Energy equation phase
-            //problem->getEmatrix(U, P);
             fvScalarMatrix EEqnR
             (
                 fvm::div(phi, E)
@@ -392,20 +337,14 @@ class ReducedCompressibleSteadyNN : public ReducedCompressibleSteadyNS
 
             EEqnR.relax();
             fvOptions.constrain(EEqnR);
-            // List<Eigen::MatrixXd> RedLinSysE = problem->Emodes.project(
-            //                                        problem->Eeqn_global(), NmodesEproj);
             List<Eigen::MatrixXd> RedLinSysE = problem->Emodes.project(EEqnR, NmodesEproj);
 
             e = reducedProblem::solveLinearSys(RedLinSysE, e, eResidual);
             problem->Emodes.reconstruct(E, e, "e");
-            //problem->Eeqn_global().solve(); //For debug purposes only
             //EEqnR.solve(); //For debug purposes only
             fvOptions.correct(E);
             thermo.correct(); // Here are calculated both temperature and density based on P,U and he.
             // Pressure equation phase
-            // constrainPressure(P, rho, U, problem->getPhiHbyA(problem->Ueqn_global(), U, P),
-            //                   problem->getRhorAUf(problem->Ueqn_global()));// Update the pressure BCs to ensure flux consistency
-            // surfaceScalarField phiHbyACalculated = problem->getPhiHbyA(problem->Ueqn_global(), U, P);
             constrainPressure(P, rho, U, problem->getPhiHbyA(UEqnR, U, P),
                               problem->getRhorAUf(UEqnR));// Update the pressure BCs to ensure flux consistency
             surfaceScalarField phiHbyACalculated = problem->getPhiHbyA(UEqnR, U, P);
@@ -414,7 +353,6 @@ class ReducedCompressibleSteadyNN : public ReducedCompressibleSteadyNS
             List<Eigen::MatrixXd> RedLinSysP;
             while (problem->_simple().correctNonOrthogonal())
             {
-                // problem->getPmatrix(problem->Ueqn_global(), U, P);
                 volScalarField rAU(1.0 / UEqnR.A()); // Inverse of the diagonal part of the U equation matrix
                 volVectorField HbyA(constrainHbyA(rAU * UEqnR.H(), U, P)); // H is the extra diagonal part summed to the r.h.s. of the U equation
                 surfaceScalarField phiHbyA("phiHbyA", fvc::interpolate(rho)*fvc::flux(HbyA));
@@ -432,24 +370,19 @@ class ReducedCompressibleSteadyNN : public ReducedCompressibleSteadyNS
                     problem->_pressureControl().refValue()
                 );
 
-                // RedLinSysP = problem->Pmodes.project(problem->Peqn_global(), NmodesPproj);
                 RedLinSysP = problem->Pmodes.project(PEqnR, NmodesPproj);
 
                 p = reducedProblem::solveLinearSys(RedLinSysP, p, pResidual);
                 problem->Pmodes.reconstruct(P, p, "p");
-                //problem->Peqn_global().solve(); //For debug purposes only
-                //PEqnR.solve(); //For debug purposes only
 
                 if (problem->_simple().finalNonOrthogonalIter())
                 {
-                    // phi = problem->getPhiHbyA(problem->Ueqn_global(), U, P) + problem->Peqn_global().flux();
-                    phi = problem->getPhiHbyA(UEqnR, U, P) + PEqnR.flux(); //Are you sure you still can use it?????????????????????????????????
+                    phi = problem->getPhiHbyA(UEqnR, U, P) + PEqnR.flux();
                 }
             }
 
     #include "incompressible/continuityErrs.H"
             P.relax();// Explicitly relax pressure for momentum corrector
-            //U = problem->HbyA() - (1.0 / problem->Ueqn_global().A()) * problem->getGradP(P);
             U = problem->HbyA() - (1.0 / UEqnR.A()) * problem->getGradP(P);
 
             U.correctBoundaryConditions();
@@ -473,9 +406,6 @@ class ReducedCompressibleSteadyNN : public ReducedCompressibleSteadyNS
             std::cout << "Ures = " << (uResidual.cwiseAbs()).sum() / (RedLinSysU[1].cwiseAbs()).sum() << std::endl;
             std::cout << "Eres = " << (eResidual.cwiseAbs()).sum() / (RedLinSysE[1].cwiseAbs()).sum() << std::endl;
             std::cout << "Pres = " << (pResidual.cwiseAbs()).sum() / (RedLinSysP[1].cwiseAbs()).sum() << std::endl;
-            // std::cout << "U = " << u << std::endl;
-            // std::cout << "E = " << e << std::endl;
-            // std::cout << "P = " << p << std::endl;
             residualNorm = max(max((uResidual.cwiseAbs()).sum() /
                                    (RedLinSysU[1].cwiseAbs()).sum(),
                                    (pResidual.cwiseAbs()).sum() / (RedLinSysP[1].cwiseAbs()).sum()),
@@ -483,19 +413,10 @@ class ReducedCompressibleSteadyNN : public ReducedCompressibleSteadyNS
             residualJump = max(max(((uResidual - uResidualOld).cwiseAbs()).sum() / (RedLinSysU[1].cwiseAbs()).sum(),
                                    ((pResidual - pResidualOld).cwiseAbs()).sum() / (RedLinSysP[1].cwiseAbs()).sum()),
                                ((eResidual - eResidualOld).cwiseAbs()).sum() / (RedLinSysE[1].cwiseAbs()).sum());
-            std::cout << residualNorm << std::endl;
-            std::cout << residualJump << std::endl;
-            //problem->turbulence->correct();
-            std::cerr << "debug point 1" << std::endl;
-            //Eigen::MatrixXd coeffL2U_prova = ITHACAutilities::getCoeffs(U, problem->Umodes,0, true); // Prova
-            //Eigen::MatrixXd nutCoeff = problem->evalNet(coeffL2U_prova.bottomRows(NmodesUproj), mu_now); // Prova
-            //Eigen::MatrixXd nutCoeff = problem->evalNet(u.bottomRows(NmodesUproj), mu_now); ///////////////////////////////////////////////////////////////////// Lifting functions are not needed
-            Eigen::MatrixXd nutCoeff = problem->evalNet(u, mu_now); // Without lifting functions
-            std::cerr << "debug point 2" << std::endl;
-            // volScalarField nutProva(nut);
-            // problem->nutModes.reconstruct(nutProva, nutCoeff, "nutProva");
+
+            //problem->turbulence->correct(); // Resolution of the full turbulence (debug purposes only)
+            Eigen::MatrixXd nutCoeff = problem->evalNet(u, mu_now);
             problem->nutModes.reconstruct(nut, nutCoeff, "nut");
-            std::cerr << "debug point 3" << std::endl;
         }
         label k = 1;
         // U.rename("Ur");
@@ -531,7 +452,7 @@ public:
             );
         ITHACAutilities::getPointsFromPatch(_mesh(), 0, top0, top0_ind);
         ITHACAutilities::getPointsFromPatch(_mesh(), 1, bot0, bot0_ind);
-        std::cout << _mesh().points().size() << std::endl;
+        // std::cout << _mesh().points().size() << std::endl;
         ms = new RBFMotionSolver(_mesh(), *dyndict);
         vectorField motion(ms->movingPoints().size(), vector::zero);
         movingIDs = ms->movingIDs();
@@ -579,7 +500,7 @@ public:
         _mesh().movePoints(point0);
         if(parTop!=0 || parBot!=0)
         {
-            std::cout << parTop << std::endl;
+            // std::cout << parTop << std::endl;
             List<vector> top0_cur = moveBasis(top0, parTop);
             List<vector> bot0_cur = moveBasis(bot0, parBot);
             ITHACAutilities::setIndices2Value(top0_ind, top0_cur, movingIDs, curX);
@@ -600,7 +521,7 @@ public:
         /// Energy field
         volScalarField& E = _E();
 
-        // if the offline solution is already performed but POD modes are not present, then read the fields
+        // If the offline solution is already performed but POD modes are not present, then read the fields
         if (offline && !ITHACAutilities::check_folder("./ITHACAoutput/POD/1"))
         {
             ITHACAstream::readMiddleFields(Ufield, U, folder);
@@ -611,21 +532,16 @@ public:
             ITHACAstream::readMiddleFields(nutFields, nut, folder);
             mu_samples = ITHACAstream::readMatrix("./parsOff_mat.txt");
         }
-        // if offline stage ha snot been performed, then perform it
+        // If offline stage ha snot been performed, then perform it
         else if (!offline)
         {
-            //Vector<double> Uinl(250, 0, 0);
-            //Vector<double> Uinl(170, 0, 0);
             double UIFinit = para->ITHACAdict->lookupOrDefault<double>("UIFinit", 170);
             Vector<double> Uinl(UIFinit, 0, 0);
 
             for (label i = 0; i < mu.rows(); i++)
             {
-                //std::cout << "Current mu = " << mu(i, 0) << std::endl;
-                //changeViscosity(mu(i, 0));
                 updateMesh(mu(i,0),mu(i,1));
                 ITHACAstream::writePoints(_mesh().points(), folder, name(i + 1) + "/polyMesh/");
-                //assignIF(_U(), Uinl);
                 assignIF(_U(), Uinl);
                 truthSolve(folder);
 
@@ -647,38 +563,6 @@ int main(int argc, char* argv[])
 {
     // Construct the tutorial object  
     tutorial02 example(argc, argv);
-    // volScalarField& s = example._p();
-    // Info << example._p().boundaryFieldRef()[1] << endl;
-    // Info << example._p().boundaryFieldRef()[1][0] << endl;
-    // example._p().boundaryFieldRef()[1][0] = 11; 
-    // Info << example._p().boundaryFieldRef()[1] << endl;
-    // freestreamPressureFvPatchScalarField& Tpatch =
-    //     refCast<freestreamPressureFvPatchScalarField>(s.boundaryFieldRef()[1]);
-    // scalarField& gradTpatch = Tpatch.freestreamValue();
-    // Info << gradTpatch << endl;
-    // forAll(gradTpatch, faceI)
-    // {
-    //     double value = valueList[faceI];
-    //     gradTpatch[faceI] = value;
-    // }
-
-    //exit(0);
-
-    // try
-    // {
-    // 	int i=2;
-    // 	if(i<3)
-    // 	{
-    // 		throw("i piccolo");
-    // 	}
-    // }
-
-    // catch(const char* message)
-    // {
-    // 	cerr<<"Succede che "<<message<< endl;
-    // }
-
-    // exit(0);
 
     ITHACAparameters* para = ITHACAparameters::getInstance();
 
@@ -700,19 +584,6 @@ int main(int argc, char* argv[])
         ITHACAstream::exportMatrix(example.mu , "parsOff", "eigen", "./");
     }
 
-    // Eigen::MatrixXd parOn;
-    // std::ifstream exFileOn("./parsOn_mat.txt");
-    // if (exFileOn)
-    // {
-    //     parOn = ITHACAstream::readMatrix("./parsOn_mat.txt");
-    // }
-
-    // else
-    // {
-    //     parOn = ITHACAutilities::rand(20, 1, 1.00e-05, 1.00e-02);
-    //     ITHACAstream::exportMatrix(parOn, "parsOn", "eigen", "./");
-    // }
-    // 
     Eigen::MatrixXd parsOn;
     std::ifstream exFileOn("./parsOn_mat.txt");
     if (exFileOn)
@@ -740,36 +611,16 @@ int main(int argc, char* argv[])
     int NmodesPproj = para->ITHACAdict->lookupOrDefault<int>("NmodesPproj", 10);
     int NmodesEproj = para->ITHACAdict->lookupOrDefault<int>("NmodesEproj", 10);
     int NmodesNutProj = para->ITHACAdict->lookupOrDefault<int>("NmodesNutProj", 10);
-    //Set the inlet boundaries patch 0 directions x and y
-    label idInl = example._mesh().boundaryMesh().findPatchID("inlet");
-    example.inletIndex.resize(1, 2);
-    example.inletIndex(0, 0) = idInl;
-    example.inletIndex(0, 1) = 0;
 
     example.updateMesh();
 
     //Perform the offline solve
     example.offlineSolve();
-    //exit(0);
-
-
-
-
-    //Read the lift field
-    //ITHACAstream::read_fields(example.liftfield, example._U(), "./lift/");
-    //ITHACAutilities::normalizeFields(example.liftfield);
-
- //    if(!ITHACAutilities::check_folder("./ITHACAoutput/POD/1")) // If POD has already been performed, you do not have to omogenize anything
- //    {
-	//     // Homogenize the snapshots
-	//     example.computeLift(example.Ufield, example.liftfield, example.Uomfield);
-	// }
     
-    // Perform POD on velocity and pressure and store the first 10 modes
-    example.updateMesh(); // Move the mesh to the original geometry to get the modes into a mid mesh
+    // Move the mesh to the original geometry to get the modes into a mid mesh
+    example.updateMesh();
 
-    //ITHACAPOD::getModes(example.Uomfield, example.Umodes, example._U().name(), example.podex, 0, 0,  // Just for lifting function
-    //                    NmodesUout);
+    // Perform POD on velocity and pressure
     ITHACAPOD::getModes(example.Ufield, example.Umodes, example._U().name(), example.podex, 0, 0,
                         NmodesUout);
     ITHACAPOD::getModes(example.Pfield, example.Pmodes, example._p().name(), example.podex, 0, 0,
@@ -784,14 +635,8 @@ int main(int argc, char* argv[])
         example.updateMesh();
         tutorial02 checkOff(argc, argv);
         checkOff.mu  = ITHACAstream::readMatrix("./parsOn_mat.txt");
-        //Set the inlet boundaries patch 0 directions x and y
-        label idInl = checkOff._mesh().boundaryMesh().findPatchID("inlet");
-        checkOff.inletIndex.resize(1, 2);
-        checkOff.inletIndex(0, 0) = idInl;
-        checkOff.inletIndex(0, 1) = 0;
         //Perform the offline solve
         checkOff.offline = false;
-        //checkOff.middleExport = false;
         checkOff.restart();
         checkOff.offlineSolve("./ITHACAoutput/checkOff/");
         checkOff.offline = true;
@@ -809,110 +654,26 @@ int main(int argc, char* argv[])
         ITHACAutilities::createSymLink("./constant", "./ITHACAoutput/checkOffSingle/");
     }
 
-    std::cerr << "debug point 100" << std::endl;
+    // Create the coefficients to train the net
     example.getTurbNN();
-    std::cerr << "debug point 200" << std::endl;
+    //Before loading the net, it has to be created through the python script
     example.loadNet("ITHACAoutput/NN/Net_" + name(example.NUmodes) + "_" + name(
                         example.NNutModes) + ".pt");
 
     // Create the reduced object
     ReducedCompressibleSteadyNN reduced(example);
-    
-    // // Reads inlet volocities boundary conditions.
-    // word vel_file(para->ITHACAdict->lookup("online_velocities"));
-    // Eigen::MatrixXd vel = ITHACAstream::readMatrix(vel_file);
-    // 
-    // Eigen::MatrixXd mu_tr;
-    // Eigen::MatrixXd u_tr;
-    // Eigen::MatrixXd g_tr(mu_tr.rows(),NmodesNutProj);
-    // Eigen::VectorXd snaps_tr;
-
-    // mu_tr = ITHACAstream::readMatrix("./parsOff_mat.txt");
-    // cnpy::load(u_tr, "ITHACAoutput/NN/coeffs/coeffL2UTrain.npy");
-    // snaps_tr=ITHACAstream::readMatrix("ITHACAoutput/Offline/snaps");
-    // auto nut_test = example._mesh().lookupObject<volScalarField>("nut");
-    // Eigen::MatrixXd a_tr(u_tr.cols(),1);
-    // Eigen::MatrixXd mu_trv(2,1);
-
-    // label k=-1;
-    // for(label i=0; i<mu_tr.rows(); i++)
-    // {
-    //     //k=k+snaps_tr[i]; //final solution
-    //     k++;
-    //     std::cerr << "debug point 2" << std::endl;
-    //     a_tr = u_tr.row(k).transpose();
-    //     std::cerr << "debug point 3" << std::endl;
-    //     mu_trv = mu_tr.row(i).transpose();
-    //     std::cerr << "debug point 4" << std::endl;
-    //     //std::cout << a_tr.topRows(NmodesUproj) << std::endl;
-    //     //std::cout << mu_trv << std::endl;
-    //     Eigen::VectorXd g_intermedia = example.evalNet(a_tr.topRows(NmodesUproj), mu_trv);
-    //     std::cerr << "debug point 3" << std::endl;
-    //     //g_tr.row(i) = g_intermedia;
-    //     std::cerr << "debug point 4" << std::endl;
-    //     example.nutModes.reconstruct(nut_test, g_intermedia, "nut");
-    //     std::cerr << "debug point 5" << std::endl;
-    //     //ITHACAstream::exportSolution(nut_test, name(i+1), "./ITHACAoutput/testNutTrain/"); // final solution
-    //     ITHACAstream::exportSolution(nut_test, name(i+1), "./ITHACAoutput/testNutTrainBegin/");
-    // }
-
-    // Eigen::MatrixXd mu_te;
-    // Eigen::MatrixXd u_te;
-    // Eigen::VectorXd snaps_te;
-
-    // mu_te = ITHACAstream::readMatrix("./parsOn_mat.txt");
-    // cnpy::load(u_te, "ITHACAoutput/NN/coeffs/coeffL2UTest.npy");
-    // snaps_te=ITHACAstream::readMatrix("ITHACAoutput/checkOff/snaps");
-    // //auto nut_test = example._mesh().lookupObject<volScalarField>("nut");
-    // Eigen::MatrixXd a_te(u_te.cols(),1);
-    // Eigen::MatrixXd mu_tev(2,1);
-
-    // k=-1;
-    // for(label i=0; i<mu_te.rows(); i++)
-    // {
-    //     //k=k+snaps_te[i]; //final solution
-    //     k++;
-    //     std::cerr << "debug point 2" << std::endl;
-    //     a_te = u_te.row(k).transpose();
-    //     std::cerr << "debug point 3" << std::endl;
-    //     mu_tev = mu_te.row(i).transpose();
-    //     std::cerr << "debug point 4" << std::endl;
-    //     //std::cout << a_tr.topRows(NmodesUproj) << std::endl;
-    //     //std::cout << mu_trv << std::endl;
-    //     Eigen::VectorXd g_intermedia = example.evalNet(a_te.topRows(NmodesUproj), mu_tev);
-    //     std::cerr << "debug point 3" << std::endl;
-    //     //g_tr.row(i) = g_intermedia;
-    //     std::cerr << "debug point 4" << std::endl;
-    //     example.nutModes.reconstruct(nut_test, g_intermedia, "nut");
-    //     std::cerr << "debug point 5" << std::endl;
-    //     //ITHACAstream::exportSolution(nut_test, name(i+1), "./ITHACAoutput/testNutTest/"); // final solution
-    //     ITHACAstream::exportSolution(nut_test, name(i+1), "./ITHACAoutput/testNutTestBegin/");
-    // }
-
-
-    // exit(0);
-
-    
-    Eigen::MatrixXd vel(1,1);
-    vel(0,0) = example._U().boundaryFieldRef()[idInl][0][0];
 
     //Perform the online solutions
     for (label k = 0; k < parsOn.rows(); k++)
     {
-        //scalar mu_now = parOn(k, 0);
-        //example.changeViscosity(mu_now);
         example.updateMesh();
         example.updateMesh(parsOn(k,0), parsOn(k,1));
         ITHACAstream::writePoints(example._mesh().points(), "./ITHACAoutput/Online_"+name(NmodesUproj)+"_"+name(NmodesNutProj)+"/", name(k + 1) + "/polyMesh/");
-        std::cout << example.inletIndex.rows() << std::endl;
+        //std::cout << example.inletIndex.rows() << std::endl;
         //reduced.setOnlineVelocity(vel);
-        std::cerr << "debug point 10" << std::endl;
-        reduced.projectReducedOperators(NmodesUproj, NmodesPproj, NmodesEproj); ///////////////////////////////////////////////////// Dimension for U should be increased by the number of lifting functions, right??? (look into the function)
-        std::cerr << "debug point 11" << std::endl;
+        reduced.projectReducedOperators(NmodesUproj, NmodesPproj, NmodesEproj); 
         example.restart();
-        std::cerr << "debug point 12" << std::endl;
         example.turbulence->validate(); ///////////////////////////////////////////////// Is it needed to validate the nut field?
-        std::cerr << "eccolooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo" << std::endl;
         Eigen::MatrixXd mu_now = parsOn.row(k);
         mu_now.transposeInPlace();
         reduced.solveOnlineCompressible(NmodesUproj, NmodesPproj, NmodesEproj, NmodesNutProj, mu_now, "./ITHACAoutput/Online_"+name(NmodesUproj)+"_"+name(NmodesNutProj)+"/");
@@ -920,19 +681,6 @@ int main(int argc, char* argv[])
 
     if(ITHACAutilities::check_folder("./ITHACAoutput/checkOff"))
     {
-        // tutorial02 checkOff(argc, argv);
-        // checkOff.mu  = ITHACAstream::readMatrix("./parsOn_mat.txt");
-        // //Set the inlet boundaries patch 0 directions x and y
-        // label idInl = checkOff._mesh().boundaryMesh().findPatchID("inlet");
-        // checkOff.inletIndex.resize(1, 2);
-        // checkOff.inletIndex(0, 0) = idInl;
-        // checkOff.inletIndex(0, 1) = 0;
-        // //Perform the offline solve
-        // checkOff.offline = false;
-        // checkOff.middleExport = false;
-        // checkOff.restart();
-        // checkOff.offlineSolve("./ITHACAoutput/checkOff/");
-
         PtrList<volVectorField> onlineU;
         PtrList<volScalarField> onlineP;
         PtrList<volScalarField> onlineE;
