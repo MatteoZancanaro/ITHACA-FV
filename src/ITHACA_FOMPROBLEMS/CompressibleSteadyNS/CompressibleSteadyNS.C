@@ -82,6 +82,8 @@ CompressibleSteadyNS::CompressibleSteadyNS(int argc, char* argv[])
     ITHACAparameters* para = ITHACAparameters::getInstance(_mesh(),_runTime());
     offline = ITHACAutilities::check_off();
     podex = ITHACAutilities::check_pod();
+    middleExport = para->ITHACAdict->lookupOrDefault<bool>("middleExport", true);
+    middleStep = para->ITHACAdict->lookupOrDefault<label>("middleStep", 20);
 }
 
 

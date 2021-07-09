@@ -48,9 +48,9 @@ class CompressibleSteadyNN : public CompressibleSteadyNS
             :
             CompressibleSteadyNS(argc, argv)
         {
-            // ITHACAparameters* para = ITHACAparameters::getInstance();
-            // NUmodes = para->ITHACAdict->lookupOrDefault<label>("NmodesUproj", 10);
-            // NNutModes = para->ITHACAdict->lookupOrDefault<label>("NmodesNutProj", 10);
+            ITHACAparameters* para = ITHACAparameters::getInstance();
+            NUmodes = para->ITHACAdict->lookupOrDefault<label>("NmodesUproj", 10);
+            NNutModes = para->ITHACAdict->lookupOrDefault<label>("NmodesNutProj", 10);
 
             // Net->push_back(torch::nn::Linear(NUmodes, 128));
             // Net->push_back(torch::nn::ReLU());
@@ -61,8 +61,8 @@ class CompressibleSteadyNN : public CompressibleSteadyNS
             //                                    torch::optim::AdamOptions(2e-2));
         };
 
-    // label NUmodes;
-    // label NNutModes;
+    label NUmodes;
+    label NNutModes;
 
     ////////////////////////////////////
     // Eddy viscosity initialization //
@@ -100,96 +100,96 @@ class CompressibleSteadyNN : public CompressibleSteadyNS
             netTorchscript.eval();
         }
 
-        // This function computes the coefficients which are later used for training
-        void getTurbNN()
+    // This function computes the coefficients which are later used for training
+    void getTurbNN()
+    {
+        if (!ITHACAutilities::check_folder("ITHACAoutput/NN/coeffs"))
         {
-            if (!ITHACAutilities::check_folder("ITHACAoutput/NN/coeffs"))
-            {
-                mkDir("ITHACAoutput/NN/coeffs");
-                // Read Fields for Train
-                PtrList<volVectorField> UfieldTrain;
-                PtrList<volScalarField> PfieldTrain;
-                PtrList<volScalarField> nutFieldsTrain;
-                ITHACAstream::readMiddleFields(UfieldTrain, _U(),
-                                               "./ITHACAoutput/Offline/");
-                ITHACAstream::readMiddleFields(PfieldTrain, _p(),
-                                               "./ITHACAoutput/Offline/");
-                auto nut_train = _mesh().lookupObject<volScalarField>("nut");
-                ITHACAstream::readMiddleFields(nutFieldsTrain, nut_train,
-                                               "./ITHACAoutput/Offline/");
-                /// Compute the coefficients for train
-                std::cout << "Computing the coefficients for U train" << std::endl;
-                Eigen::MatrixXd coeffL2U_train = ITHACAutilities::getCoeffs(UfieldTrain,
-                                                 Umodes,
-                                                 0, true);
-                std::cout << "Computing the coefficients for p train" << std::endl;
-                Eigen::MatrixXd coeffL2P_train = ITHACAutilities::getCoeffs(PfieldTrain,
-                                                 Pmodes,
-                                                 0, true);
-                std::cout << "Computing the coefficients for nuT train" << std::endl;
-                Eigen::MatrixXd coeffL2Nut_train = ITHACAutilities::getCoeffs(nutFieldsTrain,
-                                                   nutModes,
-                                                   0, true);
-                coeffL2U_train.transposeInPlace();
-                coeffL2P_train.transposeInPlace();
-                coeffL2Nut_train.transposeInPlace();
-                cnpy::save(coeffL2U_train, "ITHACAoutput/NN/coeffs/coeffL2UTrain.npy");
-                cnpy::save(coeffL2P_train, "ITHACAoutput/NN/coeffs/coeffL2PTrain.npy");
-                cnpy::save(coeffL2Nut_train, "ITHACAoutput/NN/coeffs/coeffL2NutTrain.npy");
-                // Read Fields for Test
-                PtrList<volVectorField> UfieldTest;
-                PtrList<volScalarField> PfieldTest;
-                PtrList<volScalarField> nutFieldsTest;
-                /// Compute the coefficients for test
-                ITHACAstream::readMiddleFields(UfieldTest, _U(),
-                                               "./ITHACAoutput/checkOff/");
-                ITHACAstream::readMiddleFields(PfieldTest, _p(),
-                                               "./ITHACAoutput/checkOff/");
-                auto nut_test = _mesh().lookupObject<volScalarField>("nut");
-                ITHACAstream::readMiddleFields(nutFieldsTest, nut_test,
-                                               "./ITHACAoutput/checkOff/");
-                // Compute the coefficients for test
-                Eigen::MatrixXd coeffL2U_test = ITHACAutilities::getCoeffs(UfieldTest,
-                                                Umodes,
-                                                0, true);
-                Eigen::MatrixXd coeffL2P_test = ITHACAutilities::getCoeffs(PfieldTest,
-                                                Pmodes,
-                                                0, true);
-                Eigen::MatrixXd coeffL2Nut_test = ITHACAutilities::getCoeffs(nutFieldsTest,
-                                                  nutModes,
-                                                  0, true);
-                coeffL2U_test.transposeInPlace();
-                coeffL2P_test.transposeInPlace();
-                coeffL2Nut_test.transposeInPlace();
-                cnpy::save(coeffL2U_test, "ITHACAoutput/NN/coeffs/coeffL2UTest.npy");
-                cnpy::save(coeffL2P_test, "ITHACAoutput/NN/coeffs/coeffL2PTest.npy");
-                cnpy::save(coeffL2Nut_test, "ITHACAoutput/NN/coeffs/coeffL2NutTest.npy");
-            }
+            mkDir("ITHACAoutput/NN/coeffs");
+            // Read Fields for Train
+            PtrList<volVectorField> UfieldTrain;
+            PtrList<volScalarField> PfieldTrain;
+            PtrList<volScalarField> nutFieldsTrain;
+            ITHACAstream::readMiddleFields(UfieldTrain, _U(),
+                                           "./ITHACAoutput/Offline/");
+            ITHACAstream::readMiddleFields(PfieldTrain, _p(),
+                                           "./ITHACAoutput/Offline/");
+            auto nut_train = _mesh().lookupObject<volScalarField>("nut");
+            ITHACAstream::readMiddleFields(nutFieldsTrain, nut_train,
+                                           "./ITHACAoutput/Offline/");
+            /// Compute the coefficients for train
+            std::cout << "Computing the coefficients for U train" << std::endl;
+            Eigen::MatrixXd coeffL2U_train = ITHACAutilities::getCoeffs(UfieldTrain,
+                                             Umodes,
+                                             0, true);
+            std::cout << "Computing the coefficients for p train" << std::endl;
+            Eigen::MatrixXd coeffL2P_train = ITHACAutilities::getCoeffs(PfieldTrain,
+                                             Pmodes,
+                                             0, true);
+            std::cout << "Computing the coefficients for nuT train" << std::endl;
+            Eigen::MatrixXd coeffL2Nut_train = ITHACAutilities::getCoeffs(nutFieldsTrain,
+                                               nutModes,
+                                               0, true);
+            coeffL2U_train.transposeInPlace();
+            coeffL2P_train.transposeInPlace();
+            coeffL2Nut_train.transposeInPlace();
+            cnpy::save(coeffL2U_train, "ITHACAoutput/NN/coeffs/coeffL2UTrain.npy");
+            cnpy::save(coeffL2P_train, "ITHACAoutput/NN/coeffs/coeffL2PTrain.npy");
+            cnpy::save(coeffL2Nut_train, "ITHACAoutput/NN/coeffs/coeffL2NutTrain.npy");
+            // Read Fields for Test
+            PtrList<volVectorField> UfieldTest;
+            PtrList<volScalarField> PfieldTest;
+            PtrList<volScalarField> nutFieldsTest;
+            /// Compute the coefficients for test
+            ITHACAstream::readMiddleFields(UfieldTest, _U(),
+                                           "./ITHACAoutput/checkOff/");
+            ITHACAstream::readMiddleFields(PfieldTest, _p(),
+                                           "./ITHACAoutput/checkOff/");
+            auto nut_test = _mesh().lookupObject<volScalarField>("nut");
+            ITHACAstream::readMiddleFields(nutFieldsTest, nut_test,
+                                           "./ITHACAoutput/checkOff/");
+            // Compute the coefficients for test
+            Eigen::MatrixXd coeffL2U_test = ITHACAutilities::getCoeffs(UfieldTest,
+                                            Umodes,
+                                            0, true);
+            Eigen::MatrixXd coeffL2P_test = ITHACAutilities::getCoeffs(PfieldTest,
+                                            Pmodes,
+                                            0, true);
+            Eigen::MatrixXd coeffL2Nut_test = ITHACAutilities::getCoeffs(nutFieldsTest,
+                                              nutModes,
+                                              0, true);
+            coeffL2U_test.transposeInPlace();
+            coeffL2P_test.transposeInPlace();
+            coeffL2Nut_test.transposeInPlace();
+            cnpy::save(coeffL2U_test, "ITHACAoutput/NN/coeffs/coeffL2UTest.npy");
+            cnpy::save(coeffL2P_test, "ITHACAoutput/NN/coeffs/coeffL2PTest.npy");
+            cnpy::save(coeffL2Nut_test, "ITHACAoutput/NN/coeffs/coeffL2NutTest.npy");
+        }
+    }
+
+    Eigen::MatrixXd evalNet(Eigen::MatrixXd a, Eigen::MatrixXd mu_now)
+    {
+        Eigen::MatrixXd xpred(a.rows() + mu_now.rows(), 1);
+
+        if (xpred.cols() != 1)
+        {
+            throw std::runtime_error("Predictions for more than one sample not supported yet.");
         }
 
-        Eigen::MatrixXd evalNet(Eigen::MatrixXd a, Eigen::MatrixXd mu_now)
-        {
-            Eigen::MatrixXd xpred(a.rows() + mu_now.rows(), 1);
-
-            if (xpred.cols() != 1)
-            {
-                throw std::runtime_error("Predictions for more than one sample not supported yet.");
-            }
-
-            xpred.bottomRows(a.rows()) = a;
-            xpred.topRows(mu_now.rows()) = mu_now;
-            xpred = xpred.array() * scale_inp.array() + bias_inp.array() ;
-            xpred.transposeInPlace();
-            torch::Tensor xTensor = eigenMatrix2torchTensor(xpred);
-            torch::Tensor out;
-            std::vector<torch::jit::IValue> XTensorInp;
-            XTensorInp.push_back(xTensor);
-            out = netTorchscript.forward(XTensorInp).toTensor();
-            Eigen::MatrixXd g = torchTensor2eigenMatrix<double>(out);
-            g.transposeInPlace();
-            g = (g.array() - bias_out.array()) / scale_out.array();
-            return g;
-        }
+        xpred.bottomRows(a.rows()) = a;
+        xpred.topRows(mu_now.rows()) = mu_now;
+        xpred = xpred.array() * scale_inp.array() + bias_inp.array() ;
+        xpred.transposeInPlace();
+        torch::Tensor xTensor = eigenMatrix2torchTensor(xpred);
+        torch::Tensor out;
+        std::vector<torch::jit::IValue> XTensorInp;
+        XTensorInp.push_back(xTensor);
+        out = netTorchscript.forward(XTensorInp).toTensor();
+        Eigen::MatrixXd g = torchTensor2eigenMatrix<double>(out);
+        g.transposeInPlace();
+        g = (g.array() - bias_out.array()) / scale_out.array();
+        return g;
+    }
 };
 
 class ReducedCompressibleSteadyNN : public ReducedCompressibleSteadyNS
@@ -425,12 +425,12 @@ public:
     {}
 
     ITHACAparameters* para = ITHACAparameters::getInstance();
-    
+
     /// Perform an Offline solve
     void offlineSolve(word folder = "./ITHACAoutput/Offline/")
     {
         // if the offline solution is already performed read the fields
-        if (offline)
+        if (offline && !ITHACAutilities::check_folder("./ITHACAoutput/POD/1"))
         {
             /// Velocity field
             volVectorField& U = _U();
@@ -449,22 +449,17 @@ public:
             mu_samples = ITHACAstream::readMatrix("./parsOff_mat.txt");
         }
         // else perform offline stage
-        else
+        else if (!offline)
         {
-        	std::cerr << "debug point 5" << std::endl;
         	double UIFinit = para->ITHACAdict->lookupOrDefault<double>("UIFinit", 250);
             Vector<double> Uinl(UIFinit, 0, 0);
             //Vector<double> Uinl(250, 0, 0);
 
             for (label i = 0; i < mu.rows(); i++)
             {
-            	std::cerr << "debug point 5" << std::endl;
                 std::cout << "Current mu = " << mu(i, 0) << std::endl;
-                std::cerr << "debug point 6" << std::endl;
                 changeViscosity(mu(i, 0));
-                std::cerr << "debug point 7" << std::endl;
                 assignIF(_U(), Uinl);
-                std::cerr << "debug point 8" << std::endl;
                 truthSolve(folder);
             }
         }
@@ -543,8 +538,8 @@ int main(int argc, char* argv[])
     example.offlineSolve();
     std::cerr << "debug point 4" << std::endl;
     //Read the lift field
-    ITHACAstream::read_fields(example.liftfield, example._U(), "./lift/");
-    ITHACAutilities::normalizeFields(example.liftfield);
+    // ITHACAstream::read_fields(example.liftfield, example._U(), "./lift/");
+    // ITHACAutilities::normalizeFields(example.liftfield);
     // Homogenize the snapshots
     // example.computeLift(example.Ufield, example.liftfield, example.Uomfield);
     // Perform POD on velocity and pressure and store the first 10 modes
@@ -564,6 +559,7 @@ int main(int argc, char* argv[])
         tutorial03 checkOff(argc, argv);
         checkOff.mu  = ITHACAstream::readMatrix("./parsOn_mat.txt");
         //Perform the offline solve
+        //checkOff.middleExport = para->ITHACAdict->lookupOrDefault<bool>("middleExport", true);
         checkOff.offline = false;
         checkOff.restart();
         checkOff.offlineSolve("./ITHACAoutput/checkOff/");
@@ -585,11 +581,11 @@ int main(int argc, char* argv[])
     // Create the coefficients to train the net
     example.getTurbNN();
     //Before loading the net, it has to be created through the python script
-    example.loadNet("ITHACAoutput/NN/Net_" + name(example.NUmodes) + "_" + name(
-                        example.NNutModes) + ".pt");
+    example.loadNet("ITHACAoutput/NN/Net_" + name(NmodesUproj) + "_" + name(
+                        NmodesNutProj) + ".pt");
     
     // Create the reduced object
-    ReducedCompressibleSteadyNS reduced(example);
+    ReducedCompressibleSteadyNN reduced(example);
     
     // Reads inlet volocities boundary conditions.
     // word vel_file(para->ITHACAdict->lookup("online_velocities"));
@@ -607,7 +603,7 @@ int main(int argc, char* argv[])
         example.restart();
         example.turbulence->validate();
         // reduced.solveOnlineCompressible(mu_now, NmodesUproj, NmodesPproj, NmodesEproj);
-        reduced.solveOnlineCompressible(NmodesUproj, NmodesPproj, NmodesEproj);
+        reduced.solveOnlineCompressible(NmodesUproj, NmodesPproj, NmodesEproj, NmodesNutProj, mu_now, "./ITHACAoutput/Online_"+name(NmodesUproj)+"_"+name(NmodesNutProj)+"/");
     }
 
     // if(!ITHACAutilities::check_folder("./checkOff"))
@@ -624,7 +620,7 @@ int main(int argc, char* argv[])
     //     checkOff.restart();
     //     checkOff.offlineSolve("./checkOff/");
     // }
-        if(ITHACAutilities::check_folder("./ITHACAoutput/checkOff"))
+    if(ITHACAutilities::check_folder("./ITHACAoutput/checkOff"))
     {
         PtrList<volVectorField> UfieldCheck;
         PtrList<volScalarField> PfieldCheck;
@@ -680,10 +676,10 @@ int main(int argc, char* argv[])
                             onlineE);
         Eigen::MatrixXd errorNut = ITHACAutilities::errorL2Rel(offlineNut,
                             onlineNut);
-        ITHACAstream::exportMatrix(errorU,"errorU", "python", "./ITHACAoutput/checkOffSingle/");
-        ITHACAstream::exportMatrix(errorP,"errorP", "python", "./ITHACAoutput/checkOffSingle/");
-        ITHACAstream::exportMatrix(errorE,"errorE", "python", "./ITHACAoutput/checkOffSingle/");
-        ITHACAstream::exportMatrix(errorNut,"errorNut", "python", "./ITHACAoutput/checkOffSingle/");
+        ITHACAstream::exportMatrix(errorU,"errorU"+name(NmodesUproj)+"_"+name(NmodesNutProj), "python", "./ITHACAoutput/checkOffSingle/");
+        ITHACAstream::exportMatrix(errorP,"errorP"+name(NmodesUproj)+"_"+name(NmodesNutProj), "python", "./ITHACAoutput/checkOffSingle/");
+        ITHACAstream::exportMatrix(errorE,"errorE"+name(NmodesUproj)+"_"+name(NmodesNutProj), "python", "./ITHACAoutput/checkOffSingle/");
+        ITHACAstream::exportMatrix(errorNut,"errorNut"+name(NmodesUproj)+"_"+name(NmodesNutProj), "python", "./ITHACAoutput/checkOffSingle/");
 
         for(label j=0; j<parsOn.rows(); j++)
         {

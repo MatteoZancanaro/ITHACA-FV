@@ -737,10 +737,10 @@ int main(int argc, char* argv[])
                             onlineE);
         Eigen::MatrixXd errorNut = ITHACAutilities::errorL2Rel(offlineNut,
                             onlineNut);
-        ITHACAstream::exportMatrix(errorU,"errorU", "python", "./ITHACAoutput/checkOffSingle/");
-        ITHACAstream::exportMatrix(errorP,"errorP", "python", "./ITHACAoutput/checkOffSingle/");
-        ITHACAstream::exportMatrix(errorE,"errorE", "python", "./ITHACAoutput/checkOffSingle/");
-        ITHACAstream::exportMatrix(errorNut,"errorNut", "python", "./ITHACAoutput/checkOffSingle/");
+        ITHACAstream::exportMatrix(errorU,"errorU_"+name(NmodesUproj)+"_"+name(NmodesNutProj), "python", "./ITHACAoutput/checkOffSingle/");
+        ITHACAstream::exportMatrix(errorP,"errorP_"+name(NmodesUproj)+"_"+name(NmodesNutProj), "python", "./ITHACAoutput/checkOffSingle/");
+        ITHACAstream::exportMatrix(errorE,"errorE_"+name(NmodesUproj)+"_"+name(NmodesNutProj), "python", "./ITHACAoutput/checkOffSingle/");
+        ITHACAstream::exportMatrix(errorNut,"errorNut_"+name(NmodesUproj)+"_"+name(NmodesNutProj), "python", "./ITHACAoutput/checkOffSingle/");
 
         for(label j=0; j<parsOn.rows(); j++)
         {

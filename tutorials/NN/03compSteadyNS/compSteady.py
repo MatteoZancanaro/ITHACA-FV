@@ -80,13 +80,18 @@ class Net:
         pars_test_np = np.asarray(pars_test_np)
         
         # Prepare dataset with and without angles
+        pars_train_np_exp = np.transpose(np.expand_dims(pars_train_np,axis=0))
+        pars_test_np_exp = np.transpose(np.expand_dims(pars_test_np,axis=0))
+        #print(pars_train_np_exp.shape)
         #self.inp_np_train_a = np.append(np.transpose(np.expand_dims(pars_train_np,axis=0)),inp_np_train_U[:,0:self.Nu], axis = 1)
         #self.inp_np_test_a = np.append(np.transpose(np.expand_dims(pars_test_np,axis=0)),inp_np_test_U[:,0:self.Nu], axis = 1)
-        print(pars_train_np.shape)
+        print(pars_train_np_exp.shape)
         print(inp_np_train_U.shape)
-        self.inp_np_train_a = np.append(pars_train_np,inp_np_train_U[:,0:self.Nu], axis = 1)
+        self.inp_np_train_a = np.append(pars_train_np_exp,inp_np_train_U[:,0:self.Nu], axis = 1)
         print(self.inp_np_train_a.shape)
-        self.inp_np_test_a = np.append(pars_test_np,inp_np_test_U[:,0:self.Nu], axis = 1)
+        print(pars_test_np_exp.shape)
+        print(inp_np_test_U.shape)
+        self.inp_np_test_a = np.append(pars_test_np_exp,inp_np_test_U[:,0:self.Nu], axis = 1)
         print(self.inp_np_test_a.shape)
         self.inp_np_train_noa = inp_np_train_U[:,0:self.Nu]
         self.inp_np_test_noa = inp_np_test_U[:,0:self.Nu]
